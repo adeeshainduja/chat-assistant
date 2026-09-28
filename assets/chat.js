@@ -139,7 +139,7 @@
             }
         } catch (error) {
             typing.remove();
-            addMessage('assistant', 'The AI service is temporarily unavailable. Please try again.');
+            addMessage('assistant', 'The assistant is temporarily busy. Please try again in a moment.');
         } finally {
             sending = false;
             input.disabled = false;

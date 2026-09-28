@@ -74,10 +74,27 @@ try {
     ]);
 } catch (Throwable $e) {
     $debug = Env::bool('APP_DEBUG', false);
+    $msg = $e->getMessage();
 
-    ai_json([
-        'error' => $debug
-            ? $e->getMessage()
-            : 'The AI assistant could not process your message. Please try again.',
-    ], 500);
+    if (
+        str_contains($msg, '503') ||
+        str_contains($msg, '429') ||
+        str_contains($msg, 'quota') ||
+        str_contains($msg, 'busy') ||
+        str_contains($msg, 'demand') ||
+        str_contains($msg, 'connection failed')
+    ) {
+        $friendlyError = 'The assistant is temporarily busy. Please try again in a moment.';
+    } else {
+        $friendlyError = 'I couldn\'t retrieve that information right now. Please try again shortly.';
+    }
+
+    $response = [
+        'error' => $friendlyError,
+    ];
+    if ($debug) {
+        $response['debug_detail'] = $msg;
+    }
+
+    ai_json($response, 500);
 }

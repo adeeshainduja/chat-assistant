@@ -42,7 +42,7 @@ final class GeminiClient
 
             $ch = curl_init($url);
 
-            curl_setopt_array($ch, [
+            $curlOptions = [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST => true,
                 CURLOPT_CONNECTTIMEOUT => 10,
@@ -53,7 +53,33 @@ final class GeminiClient
                     'x-goog-api-key: ' . $apiKey,
                 ],
                 CURLOPT_POSTFIELDS => $jsonPayload,
-            ]);
+            ];
+
+            $caBundle = trim((string) Env::get('CURL_CA_BUNDLE', Env::get('SSL_CERT_FILE', '')));
+            if ($caBundle === '') {
+                $iniCa = trim((string) (ini_get('curl.cainfo') ?: ini_get('openssl.cafile')));
+                if ($iniCa !== '' && file_exists($iniCa)) {
+                    $caBundle = $iniCa;
+                } else {
+                    $candidates = [
+                        'C:/xampp/php/extras/ssl/cacert.pem',
+                        'C:/xampp/perl/vendor/lib/Mozilla/CA/cacert.pem',
+                        'C:/xampp/phpMyAdmin/vendor/composer/ca-bundle/res/cacert.pem',
+                    ];
+                    foreach ($candidates as $cand) {
+                        if (file_exists($cand)) {
+                            $caBundle = $cand;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ($caBundle !== '' && file_exists($caBundle)) {
+                $curlOptions[CURLOPT_CAINFO] = $caBundle;
+            }
+
+            curl_setopt_array($ch, $curlOptions);
 
             $body = curl_exec($ch);
             $curlError = (string) curl_error($ch);

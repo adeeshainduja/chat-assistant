@@ -23,7 +23,6 @@ require_once APP_ROOT . '/src/RateLimiter.php';
 require_once APP_ROOT . '/src/GetmoreConnector.php';
 require_once APP_ROOT . '/src/GeminiClient.php';
 require_once APP_ROOT . '/src/AiService.php';
-require_once APP_ROOT . '/src/GetmoreDatabase.php';
 
 function ai_base_path(): string
 {
