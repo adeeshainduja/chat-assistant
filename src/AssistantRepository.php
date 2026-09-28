@@ -70,7 +70,16 @@ final class AssistantRepository
                      description = ?,
                      purpose = ?,
                      welcome_message = ?,
-                     enabled = ?
+                     enabled = ?,
+                     theme_primary_color = ?,
+                     theme_secondary_color = ?,
+                     theme_text_color = ?,
+                     theme_header_text_color = ?,
+                     user_bubble_color = ?,
+                     assistant_bubble_color = ?,
+                     chat_background_color = ?,
+                     starter_messages = ?,
+                     header_subtitle = ?
                  WHERE id = ?'
             );
 
@@ -80,6 +89,15 @@ final class AssistantRepository
                 trim((string) ($settings['purpose'] ?? '')),
                 trim((string) ($settings['welcome_message'] ?? '')),
                 !empty($settings['enabled']) ? 1 : 0,
+                trim((string) ($settings['theme_primary_color'] ?? '#00B957')),
+                trim((string) ($settings['theme_secondary_color'] ?? '#F3F4F6')),
+                trim((string) ($settings['theme_text_color'] ?? '#111827')),
+                trim((string) ($settings['theme_header_text_color'] ?? '#FFFFFF')),
+                trim((string) ($settings['user_bubble_color'] ?? '#ECFDF3')),
+                trim((string) ($settings['assistant_bubble_color'] ?? '#EAEAEA')),
+                trim((string) ($settings['chat_background_color'] ?? '#FFFFFF')),
+                isset($settings['starter_messages']) && $settings['starter_messages'] !== '' ? (string) $settings['starter_messages'] : null,
+                trim((string) ($settings['header_subtitle'] ?? 'AI Assistant')),
                 $assistantId,
             ]);
 

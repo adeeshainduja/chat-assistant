@@ -2,13 +2,17 @@
     const shell = document.querySelector('.chat-shell');
     const form = document.getElementById('chat-form');
     const input = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send-btn');
     const messages = document.getElementById('messages');
     const authStatus = document.getElementById('auth-status');
+    const backBtn = document.getElementById('header-back-btn');
+    const starterContainer = document.getElementById('starter-buttons');
 
     if (!shell || !form || !input || !messages || !authStatus) return;
 
     const apiUrl = shell.dataset.apiUrl;
     const enabled = shell.dataset.enabled === '1';
+    const primaryColor = shell.dataset.primaryColor || '#00B957';
 
     let authToken = null;
     let sending = false;
@@ -19,7 +23,7 @@
         wrap.className = `message ${role} ${extraClass}`.trim();
 
         const bubble = document.createElement('div');
-        bubble.className = 'bubble';
+        bubble.className = `bubble ${role}-bubble`;
         bubble.textContent = text;
 
         wrap.appendChild(bubble);
@@ -46,19 +50,26 @@
         }
     });
 
+    // Notify parent window that chat is ready
     window.parent.postMessage(
-        { type: 'GETMORE_AI_READY' },
+        { type: 'GETMORE_AI_READY', primaryColor },
         window.location.origin
     );
 
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
+    // Header back button closes the widget if embedded in iframe
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            window.parent.postMessage(
+                { type: 'GETMORE_AI_CLOSE' },
+                window.location.origin
+            );
+        });
+    }
 
-        if (!enabled || sending) return;
-
-        const message = input.value.trim();
-
-        if (!message) return;
+    // Centralized message sending function
+    async function sendMessage(message) {
+        message = (message || '').trim();
+        if (!enabled || sending || !message) return;
 
         if (!authToken) {
             setAuthState('Waiting for GETMORE login authentication…', 'error');
@@ -69,8 +80,14 @@
             return;
         }
 
+        // Hide starter buttons after first user message
+        if (starterContainer) {
+            starterContainer.style.display = 'none';
+        }
+
         sending = true;
         input.disabled = true;
+        if (sendBtn) sendBtn.disabled = true;
 
         addMessage('user', message);
         input.value = '';
@@ -126,7 +143,25 @@
         } finally {
             sending = false;
             input.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
             input.focus();
         }
+    }
+
+    // Form submit sends typed message
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        sendMessage(input.value);
+    });
+
+    // Suggested / starter question buttons
+    document.querySelectorAll('.starter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const msg = btn.dataset.message || btn.textContent.trim();
+            if (msg) {
+                input.value = msg;
+                sendMessage(msg);
+            }
+        });
     });
 })();
