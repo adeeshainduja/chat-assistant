@@ -72,6 +72,10 @@ try {
         ai_json(['error' => 'This domain is not authorized to use this assistant.'], 403);
     }
 
+    $rawLang = strtolower(trim((string) ($body['language'] ?? 'en')));
+    $allowedLanguages = ['en', 'si', 'ta'];
+    $language = in_array($rawLang, $allowedLanguages, true) ? $rawLang : 'en';
+
     $connector = new GetmoreConnector();
     $service = new AiService(
         new GeminiClient(),
@@ -79,7 +83,7 @@ try {
         $repository
     );
 
-    $reply = $service->reply($message, $history, $assistantKey, (int) $assistant['id']);
+    $reply = $service->reply($message, $history, $assistantKey, (int) $assistant['id'], $language);
 
     ai_json([
         'reply' => $reply,

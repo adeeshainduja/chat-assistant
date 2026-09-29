@@ -161,15 +161,42 @@ if (!empty($assistant['starter_messages'])) {
                         <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
                         <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>
                     </svg>
-                    Appearance
+                    <span id="label-appearance">Appearance</span>
                 </button>
+                <div class="menu-item-has-submenu" id="menu-language-wrap">
+                    <button type="button" class="dropdown-item dropdown-item-submenu-toggle" id="menu-language-btn" role="menuitem" aria-haspopup="true" aria-expanded="false">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span id="label-language" style="flex:1;">Language</span>
+                        <svg class="submenu-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                    <div class="language-submenu" id="language-submenu" role="menu" hidden>
+                        <button type="button" class="language-option-btn active" data-lang="en" role="menuitemradio" aria-checked="true">
+                            <span class="lang-name">English</span>
+                            <span class="lang-check" aria-hidden="true">✓</span>
+                        </button>
+                        <button type="button" class="language-option-btn" data-lang="si" role="menuitemradio" aria-checked="false">
+                            <span class="lang-name">සිංහල</span>
+                            <span class="lang-check" aria-hidden="true">✓</span>
+                        </button>
+                        <button type="button" class="language-option-btn" data-lang="ta" role="menuitemradio" aria-checked="false">
+                            <span class="lang-name">தமிழ்</span>
+                            <span class="lang-check" aria-hidden="true">✓</span>
+                        </button>
+                    </div>
+                </div>
                 <div class="dropdown-divider"></div>
                 <button type="button" class="dropdown-item" id="menu-reset-btn" role="menuitem">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                         <path d="M3 3v5h5"/>
                     </svg>
-                    Reset Theme
+                    <span id="label-reset">Reset Theme</span>
                 </button>
             </div>
         </div>
