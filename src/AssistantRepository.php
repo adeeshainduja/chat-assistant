@@ -76,7 +76,62 @@ final class AssistantRepository
 
         $row = $stmt->fetch();
 
-        return is_array($row) ? $row : null;
+        if (is_array($row)) {
+            return $row;
+        }
+
+        // If no assistant exists yet for this institute, create a default one
+        $instStmt = $this->pdo->prepare('SELECT id, name FROM institutes WHERE id = ? LIMIT 1');
+        $instStmt->execute([$instituteId]);
+        $inst = $instStmt->fetch();
+        if (!$inst) {
+            return null;
+        }
+
+        $assistantId = $this->createDefaultAssistant($instituteId, 'AI Assistant');
+        return $this->getAssistant($assistantId);
+    }
+
+    public function createDefaultAssistant(int $instituteId, string $assistantName = 'AI Assistant'): int
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO assistants (
+                institute_id, name, header_subtitle, welcome_message,
+                description, purpose, enabled, theme_primary_color
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $instituteId,
+            $assistantName,
+            'AI Assistant',
+            'Hello! How can I help you today?',
+            'Official AI assistant.',
+            'Help visitors learn about classes, schedules, and institute information.',
+            1,
+            '#00B957'
+        ]);
+
+        $assistantId = (int) $this->pdo->lastInsertId();
+
+        $defaultPermissions = [
+            'institute_details' => 'Institute Details',
+            'class_details' => 'Classes / Courses',
+            'teacher_details' => 'Teacher Details',
+            'new_courses' => 'New / Upcoming Courses',
+            'attendance_details' => 'Attendance',
+        ];
+
+        $permStmt = $this->pdo->prepare(
+            'INSERT INTO assistant_permissions (assistant_id, permission_key, permission_name, enabled)
+             VALUES (?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE enabled = 1'
+        );
+
+        foreach ($defaultPermissions as $key => $label) {
+            $permStmt->execute([$assistantId, $key, $label]);
+        }
+
+        return $assistantId;
     }
 
     public function getPermissions(int $assistantId = 1): array
@@ -109,9 +164,11 @@ final class AssistantRepository
         array $enabledPermissionKeys
     ): void {
         $allowedPermissions = [
+            'institute_details',
             'class_details',
-            'attendance_details',
             'teacher_details',
+            'new_courses',
+            'attendance_details',
         ];
 
         $enabledPermissionKeys = array_values(array_intersect(
@@ -124,18 +181,8 @@ final class AssistantRepository
         try {
             // 1. Update Institute
             if (!empty($instituteData)) {
-                $instStmt = $this->pdo->prepare(
-                    'UPDATE institutes
-                     SET name = ?,
-                         allowed_domains = ?,
-                         updated_at = NOW()
-                     WHERE id = ?'
-                );
-                $instStmt->execute([
-                    trim((string) ($instituteData['name'] ?? '')),
-                    isset($instituteData['allowed_domains']) ? trim((string) $instituteData['allowed_domains']) : null,
-                    $instituteId,
-                ]);
+                $instRepo = new InstituteRepository($this->pdo);
+                $instRepo->update($instituteId, $instituteData);
             }
 
             // 2. Update Assistant
@@ -193,9 +240,11 @@ final class AssistantRepository
             );
 
             $permissionLabels = [
-                'class_details' => 'Public Class Details',
-                'teacher_details' => 'Public Teacher Details',
-                'attendance_details' => 'Attendance Access',
+                'institute_details' => 'Institute Details',
+                'class_details' => 'Classes / Courses',
+                'teacher_details' => 'Teacher Details',
+                'new_courses' => 'New / Upcoming Courses',
+                'attendance_details' => 'Attendance',
             ];
 
             foreach ($enabledPermissionKeys as $key) {
@@ -219,11 +268,27 @@ final class AssistantRepository
         $instituteId = (int) ($assistant['institute_id'] ?? 1);
 
         $instituteData = [];
-        if (isset($settings['institute_name'])) {
-            $instituteData['name'] = $settings['institute_name'];
-        }
-        if (isset($settings['allowed_domains'])) {
-            $instituteData['allowed_domains'] = $settings['allowed_domains'];
+        $instituteFields = [
+            'name',
+            'allowed_domains',
+            'short_description',
+            'about_institute',
+            'public_address',
+            'public_phone',
+            'public_email',
+            'website',
+            'opening_hours',
+            'registration_info',
+            'facilities_services',
+            'public_notes',
+        ];
+
+        foreach ($instituteFields as $field) {
+            if (isset($settings['institute_' . $field])) {
+                $instituteData[$field] = $settings['institute_' . $field];
+            } elseif (isset($settings[$field])) {
+                $instituteData[$field] = $settings[$field];
+            }
         }
 
         $this->saveAssistantAndInstitute(

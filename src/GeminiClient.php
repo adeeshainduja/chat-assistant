@@ -31,7 +31,7 @@ final class GeminiClient
             throw new RuntimeException('Failed to encode JSON payload for Gemini.');
         }
 
-        $maxAttempts = 2;
+        $maxAttempts = 3;
         $attempt = 0;
         $body = false;
         $curlError = '';
@@ -87,9 +87,9 @@ final class GeminiClient
 
             curl_close($ch);
 
-            // Retry once on temporary high demand / rate limit
+            // Retry on temporary high demand / rate limit
             if (($status === 503 || $status === 429) && $attempt < $maxAttempts) {
-                sleep(1);
+                sleep($status === 429 ? 5 : 2);
                 continue;
             }
 
