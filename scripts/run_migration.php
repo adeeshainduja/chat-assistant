@@ -14,13 +14,13 @@ try {
     echo "AI DB migrations completed successfully.\n";
 
     echo "--- Institutes Table Columns ---\n";
-    print_r($aiPdo->query("DESCRIBE institutes")->fetchAll(PDO::FETCH_ASSOC));
+    print_r($aiPdo->query("DESCRIBE Ai_assistant_institutes")->fetchAll(PDO::FETCH_ASSOC));
 
     echo "--- Institute 1 Data ---\n";
-    print_r($aiPdo->query("SELECT * FROM institutes WHERE id = 1")->fetch(PDO::FETCH_ASSOC));
+    print_r($aiPdo->query("SELECT * FROM Ai_assistant_institutes WHERE id = 1")->fetch(PDO::FETCH_ASSOC));
 
     echo "--- Permissions for Assistant 1 ---\n";
-    print_r($aiPdo->query("SELECT * FROM assistant_permissions WHERE assistant_id = 1")->fetchAll(PDO::FETCH_ASSOC));
+    print_r($aiPdo->query("SELECT * FROM Ai_assistant_permissions WHERE assistant_id = 1")->fetchAll(PDO::FETCH_ASSOC));
 
     echo "\n=== Running GETMORE DB Classes/Courses Migration ===\n";
     $getmorePdo = GetmoreDatabase::connection();
