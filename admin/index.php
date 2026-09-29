@@ -90,9 +90,14 @@ $permissionHelp = [
         .save:hover{background:#222}
         .note{background:#fff7e7;padding:13px 14px;border-radius:10px;line-height:1.5;color:#694c12;font-size:13px;margin-bottom:14px}
 
-        .institute-nav{display:flex;gap:12px;align-items:center;margin-bottom:24px;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 18px}
-        .institute-nav label{font-weight:700;font-size:14px}
-        .institute-nav select{width:auto;min-width:240px;padding:8px 12px}
+        .institute-nav{display:flex;gap:12px;align-items:center;margin-bottom:24px;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 18px;flex-wrap:wrap}
+        .institute-nav label{font-weight:700;font-size:14px;white-space:nowrap}
+        .institute-nav select{width:auto;min-width:240px;max-width:100%;padding:8px 12px}
+        @media(max-width:480px){
+            .institute-nav{flex-direction:column;align-items:stretch;padding:12px;gap:8px}
+            .institute-nav select{width:100%;min-width:0}
+            .save{width:100%;text-align:center}
+        }
 
         .color-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-top:10px}
         .color-item{display:flex;flex-direction:column;gap:6px}
