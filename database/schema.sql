@@ -1,5 +1,17 @@
+CREATE TABLE institutes (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    public_widget_key VARCHAR(100) NOT NULL UNIQUE,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    allowed_domains TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE assistants (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    institute_id INT UNSIGNED NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT NULL,
     purpose TEXT NULL,
@@ -16,7 +28,10 @@ CREATE TABLE assistants (
     header_subtitle VARCHAR(255) DEFAULT 'AI Assistant',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_assistant_institute
+        FOREIGN KEY (institute_id) REFERENCES institutes(id)
+        ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE assistant_permissions (
@@ -32,14 +47,21 @@ CREATE TABLE assistant_permissions (
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT INTO institutes
+(id, name, public_widget_key, is_active, allowed_domains)
+VALUES
+(1, 'Achieve Institute', 'pk_achieve_72af8391', 1, 'localhost, 127.0.0.1, academy.lk');
+
 INSERT INTO assistants
-(name, description, purpose, welcome_message, enabled, theme_primary_color, theme_secondary_color, theme_text_color, theme_header_text_color, user_bubble_color, assistant_bubble_color, chat_background_color, starter_messages, header_subtitle)
+(id, institute_id, name, description, purpose, welcome_message, enabled, theme_primary_color, theme_secondary_color, theme_text_color, theme_header_text_color, user_bubble_color, assistant_bubble_color, chat_background_color, starter_messages, header_subtitle)
 VALUES
 (
-    'GETMORE AI',
-    'AI assistant for students using the GETMORE tuition class system.',
-    'Help logged-in students with approved information about their own classes, their own attendance, and their teachers.',
-    'Hi! How can I help you with your classes today?',
+    1,
+    1,
+    'Achieve AI',
+    'Public AI assistant for Achieve Institute tuition classes, schedules, and verified attendance.',
+    'Help visitors and parents with approved information about classes, schedules, teachers, and verified student attendance.',
+    'Hello! How can I help you with Achieve Institute today?',
     1,
     '#00B957',
     '#F3F4F6',
@@ -48,13 +70,13 @@ VALUES
     '#ECFDF3',
     '#EAEAEA',
     '#FFFFFF',
-    '["What classes do I have?","Show my attendance","Who are my teachers?","When is my next class?"]',
+    '["What classes do you offer?","Who teaches Combined Mathematics?","Show my attendance","What time is Mathematics class?"]',
     'AI Assistant'
 );
 
 INSERT INTO assistant_permissions
 (assistant_id, permission_key, permission_name, enabled)
 VALUES
-(1, 'class_details', 'Class Details', 1),
-(1, 'attendance_details', 'My Attendance Details', 1),
-(1, 'teacher_details', 'Teacher Details', 1);
+(1, 'class_details', 'Public Class Details', 1),
+(1, 'teacher_details', 'Public Teacher Details', 1),
+(1, 'attendance_details', 'Attendance Access', 1);
