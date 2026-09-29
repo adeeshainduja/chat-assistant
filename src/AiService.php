@@ -14,8 +14,13 @@ final class AiService
         string $message,
         array $history = [],
         string $widgetKey = '',
-        int $assistantId = 1
+        int $assistantId = 1,
+        string $language = 'en'
     ): string {
+        $rawLang = strtolower(trim($language));
+        $allowedLanguages = ['en', 'si', 'ta'];
+        $language = in_array($rawLang, $allowedLanguages, true) ? $rawLang : 'en';
+
         $assistant = null;
         if ($widgetKey !== '') {
             $assistant = $this->repository->getByWidgetKey($widgetKey);
@@ -44,7 +49,7 @@ final class AiService
         $payload = [
             'system_instruction' => [
                 'parts' => [
-                    ['text' => $this->buildInstructions($assistant, $permissions)],
+                    ['text' => $this->buildInstructions($assistant, $permissions, $language)],
                 ],
             ],
             'contents' => $contents,
@@ -131,12 +136,78 @@ final class AiService
         return 'I could not complete that request. Please try again.';
     }
 
-    private function buildInstructions(array $assistant, array $permissions): string
+    private function buildInstructions(array $assistant, array $permissions, string $language = 'en'): string
     {
         $assistantName = (string) ($assistant['name'] ?? 'GETMORE AI');
         $instituteName = (string) ($assistant['institute_name'] ?? 'our institute');
         $description = (string) ($assistant['description'] ?? '');
         $purpose = (string) ($assistant['purpose'] ?? '');
+
+        $langMap = [
+            'en' => 'English',
+            'si' => 'Sinhala',
+            'ta' => 'Tamil',
+        ];
+        $selectedLangName = $langMap[$language] ?? 'English';
+
+        $langSpecificGuide = match ($language) {
+            'si' => <<<LANG_SI
+- SELECTED LANGUAGE: Sinhala
+- Reply primarily and fluently in natural, polite Sinhala (සිංහල).
+- For attendance verification prompt, provide natural Sinhala while retaining the exact public identifier labels:
+  "ඔබගේ පැමිණීමේ තොරතුරු පරීක්ෂා කිරීමට කරුණාකර පහත තොරතුරු ලබා දෙන්න:
+
+• Student ID / Index Number
+• Parent Mobile Number"
+- For attendance verification failure, provide only:
+  "මට එම තොරතුරු තහවුරු කර ගැනීමට නොහැකි විය. කරුණාකර ඔබගේ Student ID / Index Number සහ Parent Mobile Number පරීක්ෂා කර නැවත උත්සාහ කරන්න."
+- For verified confirmation:
+  "ස්තූතියි, ඔබගේ තොරතුරු තහවුරු විය. ඔබට ඔබගේ මෑතකාලීන පැමිණීමේ වාර්තා හෝ නිශ්චිත දිනයක පැමිණීම බැලීමට අවශ්‍යද?"
+- Do NOT translate exact official course or class names (e.g. keep "Combined Mathematics 2026 Theory" as returned by tools). Explain around them in Sinhala.
+LANG_SI,
+            'ta' => <<<LANG_TA
+- SELECTED LANGUAGE: Tamil
+- Reply primarily and fluently in natural, polite Tamil (தமிழ்).
+- For attendance verification prompt, provide natural Tamil while retaining the exact public identifier labels:
+  "உங்கள் வருகை விவரங்களைச் சரிபார்க்க, தயவுசெய்து பின்வரும் விவரங்களை வழங்கவும்:
+
+• Student ID / Index Number
+• Parent Mobile Number"
+- For attendance verification failure, provide only:
+  "அந்த விவரங்களை என்னால் சரிபார்க்க முடியவில்லை. தயவுசெய்து உங்கள் Student ID / Index Number மற்றும் Parent Mobile Number ஆகியவற்றைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்."
+- For verified confirmation:
+  "நன்றி, உங்கள் விவரங்கள் சரிபார்க்கப்பட்டன. உங்கள் சமீபத்திய வருகைப் பதிவையோ அல்லது குறிப்பிட்ட தேதிக்கான வருகைப் பதிவையோ பார்க்க விரும்புகிறீர்களா?"
+- Do NOT translate exact official course or class names (e.g. keep "Combined Mathematics 2026 Theory" as returned by tools). Explain around them in Tamil.
+LANG_TA,
+            default => <<<LANG_EN
+- SELECTED LANGUAGE: English
+- Reply in fluent, natural English.
+- For attendance verification prompt:
+  "To check attendance, please provide:
+
+• Student ID / Index Number
+• Parent Mobile Number"
+- For attendance verification failure:
+  "I couldn't verify those details. Please check your Student ID / Index Number and Parent Mobile Number and try again."
+- For verified confirmation:
+  "Thanks, your details have been verified. Would you like to see your recent attendance or attendance for a specific date?"
+- Course names, proper names, IDs, codes, and original data values should remain unchanged.
+LANG_EN,
+        };
+
+        $languageSection = <<<LANG_SECTION
+==================================================
+LANGUAGE DIRECTIVE: {$selectedLangName}
+==================================================
+- THE EXPLICITLY SELECTED LANGUAGE IS: {$selectedLangName}.
+- STRICT PRIORITY OVER AUTOMATIC DETECTION:
+  The explicitly selected language ({$selectedLangName}) has ABSOLUTE PRIORITY over automatic language detection or the language used in the visitor's message.
+  * If selected language is Sinhala, even if the user types in English (e.g., "Check my attendance"), you MUST reply in Sinhala.
+  * If selected language is Tamil, even if the user types in English, you MUST reply in Tamil.
+  * If selected language is English, even if the user types in Sinhala or Tamil (e.g., "මගේ attendance බලන්න"), you MUST reply in English.
+- UNCHANGED TERMS: Proper nouns, institute names, lecturer/teacher names, official course/class names (e.g. "Combined Mathematics 2026 Theory"), dates, numbers, codes, and identifiers ("Student ID / Index Number", "Parent Mobile Number") must remain intact and clear.
+{$langSpecificGuide}
+LANG_SECTION;
 
         $instDetailsEnabled = !empty($permissions['institute_details']['enabled']);
         $classEnabled = !empty($permissions['class_details']['enabled']);
@@ -257,6 +328,8 @@ ADMIN DESCRIPTION:
 
 ADMIN PURPOSE:
 {$purpose}
+
+{$languageSection}
 
 ==================================================
 CONVERSATIONAL BEHAVIOR & ROLE

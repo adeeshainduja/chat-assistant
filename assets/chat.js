@@ -22,6 +22,14 @@
     const userBubbleInput = document.getElementById('theme-user-bubble');
     const userBubbleSwatch = document.getElementById('user-bubble-preview');
 
+    // Language & Submenu elements
+    const menuLanguageWrap = document.getElementById('menu-language-wrap');
+    const menuLanguageBtn = document.getElementById('menu-language-btn');
+    const languageSubmenu = document.getElementById('language-submenu');
+    const labelAppearance = document.getElementById('label-appearance');
+    const labelLanguage = document.getElementById('label-language');
+    const labelReset = document.getElementById('label-reset');
+
     if (!shell || !form || !input || !messages) return;
 
     const apiUrl = shell.dataset.apiUrl;
@@ -39,7 +47,42 @@
     };
 
     const THEME_STORAGE_KEY = `getmore_ai_theme_${assistantKey || 'default'}`;
+    const LANGUAGE_STORAGE_KEY = `getmore_ai_language_${assistantKey || 'default'}`;
     let currentTheme = { ...adminTheme };
+    let currentLanguage = 'en';
+
+    const UI_STRINGS = {
+        en: {
+            placeholder: 'Ask a question…',
+            send: 'Send message',
+            appearance: 'Appearance',
+            language: 'Language',
+            resetTheme: 'Reset Theme',
+            thinking: 'Thinking…',
+            busy: 'The assistant is temporarily busy. Please try again in a moment.',
+            error: 'I could not process that request.',
+        },
+        si: {
+            placeholder: 'ඔබගේ ප්‍රශ්නය මෙහි ලියන්න…',
+            send: 'පණිවිඩය යවන්න',
+            appearance: 'පෙනුම',
+            language: 'භාෂාව',
+            resetTheme: 'තේමාව යළි සකසන්න',
+            thinking: 'සිතමින්…',
+            busy: 'සහායකයා මොහොතකට කාර්යබහුලයි. කරුණාකර මොහොතකින් නැවත උත්සාහ කරන්න.',
+            error: 'මට එම ඉල්ලීම සැකසීමට නොහැකි විය.',
+        },
+        ta: {
+            placeholder: 'உங்கள் கேள்வியை கேட்கவும்…',
+            send: 'செய்தி அனுப்பவும்',
+            appearance: 'தோற்றம்',
+            language: 'மொழி',
+            resetTheme: 'தீமை மீட்டமை',
+            thinking: 'சிந்திக்கிறது…',
+            busy: 'உதவியாளர் தற்போது பிஸியாக உள்ளார். சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.',
+            error: 'அந்த கோரிக்கையை செயல்படுத்த முடியவில்லை.',
+        },
+    };
 
     // Luminance and contrast helper
     function getContrastTextColor(hexColor) {
@@ -192,8 +235,72 @@
 
     initTheme();
 
+    // Language handling
+    function applyLanguage(lang, save = false) {
+        if (!['en', 'si', 'ta'].includes(lang)) {
+            lang = 'en';
+        }
+        currentLanguage = lang;
+
+        const strings = UI_STRINGS[lang] || UI_STRINGS.en;
+
+        if (input) input.placeholder = strings.placeholder;
+        if (sendBtn) sendBtn.setAttribute('aria-label', strings.send);
+        if (labelAppearance) labelAppearance.textContent = strings.appearance;
+        if (labelLanguage) labelLanguage.textContent = strings.language;
+        if (labelReset) labelReset.textContent = strings.resetTheme;
+
+        document.querySelectorAll('.language-option-btn').forEach(btn => {
+            const isMatch = btn.dataset.lang === lang;
+            btn.classList.toggle('active', isMatch);
+            btn.setAttribute('aria-checked', isMatch ? 'true' : 'false');
+        });
+
+        if (save) {
+            try {
+                localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+            } catch (e) {}
+        }
+    }
+
+    function initLanguage() {
+        let savedLang = 'en';
+        try {
+            const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+            if (stored && ['en', 'si', 'ta'].includes(stored)) {
+                savedLang = stored;
+            }
+        } catch (e) {}
+        applyLanguage(savedLang, false);
+    }
+
+    initLanguage();
+
     // Dropdown and Appearance Panel controls
+    function closeLanguageSubmenu() {
+        if (languageSubmenu) languageSubmenu.hidden = true;
+        if (menuLanguageWrap) menuLanguageWrap.classList.remove('open');
+        if (menuLanguageBtn) menuLanguageBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function openLanguageSubmenu() {
+        if (languageSubmenu) languageSubmenu.hidden = false;
+        if (menuLanguageWrap) menuLanguageWrap.classList.add('open');
+        if (menuLanguageBtn) menuLanguageBtn.setAttribute('aria-expanded', 'true');
+    }
+
+    function toggleLanguageSubmenu(e) {
+        if (e) e.stopPropagation();
+        if (!languageSubmenu) return;
+        if (languageSubmenu.hidden) {
+            openLanguageSubmenu();
+        } else {
+            closeLanguageSubmenu();
+        }
+    }
+
     function closeDropdown() {
+        closeLanguageSubmenu();
         if (headerDropdown) headerDropdown.hidden = true;
         if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
     }
@@ -231,6 +338,20 @@
             openThemePanel();
         });
     }
+
+    if (menuLanguageBtn) {
+        menuLanguageBtn.addEventListener('click', toggleLanguageSubmenu);
+    }
+
+    document.querySelectorAll('.language-option-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chosen = btn.dataset.lang || 'en';
+            applyLanguage(chosen, true);
+            closeLanguageSubmenu();
+            closeDropdown();
+        });
+    });
 
     if (menuResetBtn) {
         menuResetBtn.addEventListener('click', (e) => {
@@ -362,7 +483,8 @@
         addMessage('user', message);
         input.value = '';
 
-        const typing = addMessage('assistant', 'Thinking…', 'typing');
+        const strings = UI_STRINGS[currentLanguage] || UI_STRINGS.en;
+        const typing = addMessage('assistant', strings.thinking, 'typing');
 
         try {
             const response = await fetch(apiUrl, {
@@ -376,6 +498,7 @@
                     assistant_key: assistantKey,
                     message,
                     history: history.slice(-10),
+                    language: currentLanguage,
                 }),
             });
 
@@ -383,7 +506,7 @@
             typing.remove();
 
             if (!response.ok) {
-                addMessage('assistant', data.error || 'I could not process that request.');
+                addMessage('assistant', data.error || strings.error);
                 return;
             }
 
@@ -398,7 +521,7 @@
             }
         } catch (error) {
             typing.remove();
-            addMessage('assistant', 'The assistant is temporarily busy. Please try again in a moment.');
+            addMessage('assistant', strings.busy);
         } finally {
             sending = false;
             input.disabled = false;
