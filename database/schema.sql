@@ -4,6 +4,16 @@ CREATE TABLE institutes (
     public_widget_key VARCHAR(100) NOT NULL UNIQUE,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     allowed_domains TEXT NULL,
+    short_description VARCHAR(500) NULL,
+    about_institute TEXT NULL,
+    public_address TEXT NULL,
+    public_phone VARCHAR(100) NULL,
+    public_email VARCHAR(255) NULL,
+    website VARCHAR(255) NULL,
+    opening_hours TEXT NULL,
+    registration_info TEXT NULL,
+    facilities_services TEXT NULL,
+    public_notes TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
@@ -48,9 +58,25 @@ CREATE TABLE assistant_permissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO institutes
-(id, name, public_widget_key, is_active, allowed_domains)
+(id, name, public_widget_key, is_active, allowed_domains, short_description, about_institute, public_address, public_phone, public_email, website, opening_hours, registration_info, facilities_services, public_notes)
 VALUES
-(1, 'Achieve Institute', 'pk_achieve_72af8391', 1, 'localhost, 127.0.0.1, academy.lk');
+(
+    1,
+    'Achieve Institute',
+    'pk_achieve_72af8391',
+    1,
+    'localhost, 127.0.0.1, academy.lk',
+    'Leading higher education and tuition institute for secondary and A/L students.',
+    'Achieve Institute is dedicated to academic excellence with expert teaching, modern facilities, and comprehensive student support in science, mathematics, and commerce streams.',
+    'No. 124, High Level Road, Nugegoda, Sri Lanka',
+    '+94 11 282 9900 / +94 77 712 3456',
+    'info@achieveinstitute.lk',
+    'https://achieveinstitute.lk',
+    'Monday – Saturday: 7:30 AM – 7:00 PM\nSunday: 8:00 AM – 5:00 PM',
+    'New students can register online via our student portal or visit the front office with parent/guardian ID. Admission is open year-round.',
+    'Air-conditioned smart lecture halls, digital attendance tracking, library, study areas, cafeteria, and secure parking.',
+    NULL
+);
 
 INSERT INTO assistants
 (id, institute_id, name, description, purpose, welcome_message, enabled, theme_primary_color, theme_secondary_color, theme_text_color, theme_header_text_color, user_bubble_color, assistant_bubble_color, chat_background_color, starter_messages, header_subtitle)
@@ -70,13 +96,15 @@ VALUES
     '#ECFDF3',
     '#EAEAEA',
     '#FFFFFF',
-    '["What classes do you offer?","Who teaches Combined Mathematics?","Show my attendance","What time is Mathematics class?"]',
+    '["What classes do you offer?","Tell me about this institute","Who are your teachers?","Do you have any new courses?","Check my attendance"]',
     'AI Assistant'
 );
 
 INSERT INTO assistant_permissions
 (assistant_id, permission_key, permission_name, enabled)
 VALUES
-(1, 'class_details', 'Public Class Details', 1),
-(1, 'teacher_details', 'Public Teacher Details', 1),
-(1, 'attendance_details', 'Attendance Access', 1);
+(1, 'institute_details', 'Institute Details', 1),
+(1, 'class_details', 'Classes / Courses', 1),
+(1, 'teacher_details', 'Teacher Details', 1),
+(1, 'new_courses', 'New / Upcoming Courses', 1),
+(1, 'attendance_details', 'Attendance', 1);
