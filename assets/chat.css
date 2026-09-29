@@ -847,23 +847,98 @@ html, body {
     color: #FFFFFF;
 }
 
-/* Mobile full-screen support */
-@media (max-width: 520px) {
+/* Responsive Breakpoints: 1200px, 1024px, 768px, 480px */
+@media (max-width: 1024px) {
+    .messages {
+        padding: 16px 14px;
+    }
+}
+
+@media (max-width: 768px) {
+    .bubble {
+        max-width: 85%;
+    }
+    .starter-buttons {
+        max-width: 100%;
+        padding: 0 12px;
+    }
+}
+
+@media (max-width: 480px) {
     .chat-shell {
         border-radius: 0;
         border: none;
         height: 100vh;
+        height: 100dvh;
         box-shadow: none;
     }
 
     .chat-header {
         border-radius: 0;
+        height: 60px;
+        min-height: 60px;
+        padding: 0 12px;
+    }
+
+    .header-name {
+        font-size: 15px;
+    }
+
+    .header-subtitle {
+        font-size: 11.5px;
+    }
+
+    .messages {
+        padding: 14px 10px;
+    }
+
+    .bubble {
+        max-width: 90%;
+        font-size: 13.5px;
+        padding: 10px 13px;
+    }
+
+    .welcome-message .bubble,
+    .welcome-bubble {
+        max-width: 94%;
+        padding: 12px 14px;
+        font-size: 13.5px;
+    }
+
+    .starter-buttons {
+        max-width: 100%;
+        padding: 0 6px;
+        gap: 8px;
+    }
+
+    .starter-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .composer {
+        padding: 10px 10px;
+        gap: 8px;
+    }
+
+    .composer input {
+        height: 40px;
+        padding: 0 14px;
+        font-size: 13.5px;
+    }
+
+    #chat-send-btn {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
     }
 
     .theme-panel {
-        left: 8px;
-        right: 8px;
-        top: 8px;
-        bottom: 70px;
+        left: 6px;
+        right: 6px;
+        top: 6px;
+        bottom: 60px;
+        border-radius: 14px;
+        padding: 12px;
     }
 }
