@@ -134,3 +134,4 @@ From the AI project directory:
 - Function/tool permissions are dynamically built from the admin panel.
 - A disabled permission is not exposed as an AI tool.
 - PHP re-checks the permission before executing any tool.
+"# Getmore-AI-Chatbot" 
