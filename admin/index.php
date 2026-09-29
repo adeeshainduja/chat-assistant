@@ -12,7 +12,7 @@ $assistantRepo = new AssistantRepository($pdo);
 $institutes = $instituteRepo->getAll();
 
 // Selected institute
-$selectedInstituteId = isset($_GET['institute_id']) ? (int) $_GET['institute_id'] : 0;
+$selectedInstituteId = isset($_GET['institute_id']) ? (int) $_GET['institute_id'] : (isset($_GET['institute']) ? (int) $_GET['institute'] : 0);
 if ($selectedInstituteId < 1 && !empty($institutes)) {
     $selectedInstituteId = (int) $institutes[0]['id'];
 }
@@ -34,7 +34,6 @@ $assistant = null;
 if ($activeInstitute) {
     $assistant = $assistantRepo->getByInstituteId($selectedInstituteId);
     if (!$assistant) {
-        // Fallback to assistant 1
         $assistant = $assistantRepo->getAssistant(1);
     }
 }
@@ -44,6 +43,7 @@ $permissions = $assistantRepo->getPermissions($assistantId);
 
 $saved = isset($_GET['saved']);
 $base = ai_base_path();
+$activeNav = 'assistants';
 
 $currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -62,12 +62,16 @@ if (!empty($assistant['starter_messages'])) {
     if (is_array($decoded)) {
         $starterLines = implode("\n", $decoded);
     }
+} else {
+    $starterLines = "What classes do you offer?\nTell me about this institute\nWho are your teachers?\nDo you have any new courses?\nCheck my attendance";
 }
 
 $permissionHelp = [
-    'class_details' => 'Expose public class schedules, subjects, grades, mediums, and times to website visitors.',
+    'institute_details' => 'Allow the AI to answer questions about this institute (about, location, address, phone, email, website, opening hours, facilities, registration info).',
+    'class_details' => 'Allow visitors to view all public class schedules and search for specific courses/subjects (e.g. Chemistry, Physics, Mathematics).',
     'teacher_details' => 'Expose approved teacher names and their assigned public classes to website visitors.',
-    'attendance_details' => 'Allow parents/students to look up attendance records via student name + parent/guardian verification (NO OTP).',
+    'new_courses' => 'Allow visitors to discover upcoming classes and new courses currently open for enrollment.',
+    'attendance_details' => 'Allow parents/students to look up private attendance records via student name + parent/guardian verification (NO OTP).',
 ];
 ?>
 <!doctype html>
@@ -76,40 +80,19 @@ $permissionHelp = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>GETMORE AI Admin</title>
+    <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/admin.css">
     <style>
-        *{box-sizing:border-box}
-        body{font-family:Arial,sans-serif;background:#f5f6f8;margin:0;color:#181818}
-        .top{background:#111;color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center}
-        .top a{color:#fff;text-decoration:none;font-size:14px}
-        .top a:hover{text-decoration:underline}
-        .wrap{max-width:980px;margin:32px auto;padding:0 18px}
-        .card{background:#fff;border:1px solid #e8e8e8;border-radius:16px;padding:24px;margin-bottom:18px}
-        h1{font-size:26px;margin:0 0 6px}
-        h2{font-size:18px;margin:0 0 16px;color:#111}
-        .muted{color:#707070;font-size:13px}
-        label.field{display:block;font-weight:700;margin:16px 0 7px;font-size:14px}
-        input[type=text],textarea,select{width:100%;padding:12px;border:1px solid #d5d5d5;border-radius:10px;font:inherit;background:#fff}
-        textarea{min-height:100px;resize:vertical}
-        .toggle{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px}
         .permission{display:flex;gap:12px;padding:15px 0;border-top:1px solid #efefef;align-items:flex-start}
         .permission:first-of-type{border-top:0}
         .permission strong{display:block;margin-bottom:4px;font-size:14px}
         .permission small{color:#6f6f6f;line-height:1.45;font-size:13px}
         .save{border:0;background:#111;color:#fff;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer}
         .save:hover{background:#222}
-        .success{background:#ecfaef;color:#246832;padding:12px 14px;border-radius:10px;margin-bottom:18px;font-weight:700}
         .note{background:#fff7e7;padding:13px 14px;border-radius:10px;line-height:1.5;color:#694c12;font-size:13px;margin-bottom:14px}
 
         .institute-nav{display:flex;gap:12px;align-items:center;margin-bottom:24px;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 18px}
         .institute-nav label{font-weight:700;font-size:14px}
         .institute-nav select{width:auto;min-width:240px;padding:8px 12px}
-
-        .embed-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;font-family:Consolas,monospace;font-size:13px;color:#1e293b;white-space:pre-wrap;word-break:break-all}
-        .embed-actions{display:flex;gap:12px;margin-top:12px;align-items:center}
-        .btn-secondary{background:#00B957;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-        .btn-secondary:hover{background:#009e4a}
-        .btn-outline{background:#fff;color:#111;border:1px solid #ccc;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-        .btn-outline:hover{background:#f0f0f0}
 
         .color-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;margin-top:10px}
         .color-item{display:flex;flex-direction:column;gap:6px}
@@ -122,14 +105,11 @@ $permissionHelp = [
     </style>
 </head>
 <body>
-<div class="top">
-    <strong>GETMORE AI Assistant Platform</strong>
-    <a href="<?= htmlspecialchars($base) ?>/admin/logout.php">Logout</a>
-</div>
+<?php include __DIR__ . '/nav.php'; ?>
 
 <div class="wrap">
     <h1>Institute Assistant Settings</h1>
-    <p class="muted" style="margin-bottom:20px;">Configure institute-specific AI assistants, security switches, theme appearance, and embed scripts.</p>
+    <p class="muted" style="margin-bottom:20px;">Configure institute public information, feature permissions, course search, appearance, and widget embed.</p>
 
     <?php if ($saved): ?>
         <div class="success">AI assistant settings were saved successfully.</div>
@@ -149,7 +129,7 @@ $permissionHelp = [
     <!-- Embed Script Widget Card -->
     <div class="card">
         <h2>Embed AI Assistant Widget</h2>
-        <p class="muted" style="margin-top:-6px;margin-bottom:12px;">Place this script on the institute's website before the closing <code>&lt;/body&gt;</code> tag:</p>
+        <p class="muted" style="margin-top:-6px;margin-bottom:12px;">Place this script tag on the institute's website before the closing <code>&lt;/body&gt;</code> tag:</p>
         <div class="embed-box" id="embed-code-block"><?= htmlspecialchars($embedCode) ?></div>
         <div class="embed-actions">
             <button type="button" class="btn-secondary" id="copy-script-btn" onclick="copyEmbedScript()">
@@ -176,23 +156,73 @@ $permissionHelp = [
         <input type="hidden" name="institute_id" value="<?= (int) $selectedInstituteId ?>">
         <input type="hidden" name="assistant_id" value="<?= (int) $assistantId ?>">
 
-        <!-- Institute Information -->
+        <!-- Section 1: Institute Public Information -->
         <div class="card">
-            <h2>Institute Configuration</h2>
+            <h2>Institute Public Information</h2>
+            <p class="muted" style="margin-top:-8px;margin-bottom:14px;">These details are returned when visitors ask about the institute, location, contact info, hours, facilities, and registration.</p>
 
-            <label class="toggle">
+            <label class="toggle" style="margin-bottom:14px;">
                 <input type="checkbox" name="enabled" value="1" <?= !empty($assistant['enabled']) ? 'checked' : '' ?>>
                 Enable AI Assistant for this Institute
             </label>
 
-            <label class="field">Institute Name</label>
-            <input type="text" name="institute_name" maxlength="255" required
-                   value="<?= htmlspecialchars((string) ($activeInstitute['name'] ?? 'Achieve Institute')) ?>">
+            <div class="row">
+                <div>
+                    <label class="field">Institute Name</label>
+                    <input type="text" name="institute_name" maxlength="255" required
+                           value="<?= htmlspecialchars((string) ($activeInstitute['name'] ?? 'Achieve Institute')) ?>">
+                </div>
+                <div>
+                    <label class="field">Public Widget Key</label>
+                    <input type="text" readonly style="background:#f8fafc;color:#64748b;font-family:Consolas,monospace;"
+                           value="<?= htmlspecialchars($publicWidgetKey) ?>">
+                </div>
+            </div>
 
-            <label class="field">Public Widget Key</label>
-            <input type="text" readonly style="background:#f8fafc;color:#64748b;font-family:Consolas,monospace;"
-                   value="<?= htmlspecialchars($publicWidgetKey) ?>">
-            <small class="muted">This unique public key identifies the assistant in widget.js embeds and chat requests.</small>
+            <label class="field">Short Description</label>
+            <input type="text" name="short_description" maxlength="500" placeholder="e.g. Leading higher education and tuition institute"
+                   value="<?= htmlspecialchars((string) ($activeInstitute['short_description'] ?? '')) ?>">
+
+            <label class="field">About Institute</label>
+            <textarea name="about_institute" placeholder="Detailed background, philosophy, and academic excellence of the institute"><?= htmlspecialchars((string) ($activeInstitute['about_institute'] ?? '')) ?></textarea>
+
+            <div class="row">
+                <div>
+                    <label class="field">Public Address</label>
+                    <input type="text" name="public_address" maxlength="255" placeholder="e.g. No. 124, High Level Road, Nugegoda"
+                           value="<?= htmlspecialchars((string) ($activeInstitute['public_address'] ?? '')) ?>">
+                </div>
+                <div>
+                    <label class="field">Public Phone</label>
+                    <input type="text" name="public_phone" maxlength="100" placeholder="e.g. +94 11 282 9900 / 077 712 3456"
+                           value="<?= htmlspecialchars((string) ($activeInstitute['public_phone'] ?? '')) ?>">
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label class="field">Public Email</label>
+                    <input type="email" name="public_email" maxlength="255" placeholder="e.g. info@institute.lk"
+                           value="<?= htmlspecialchars((string) ($activeInstitute['public_email'] ?? '')) ?>">
+                </div>
+                <div>
+                    <label class="field">Website</label>
+                    <input type="text" name="website" maxlength="255" placeholder="e.g. https://institute.lk"
+                           value="<?= htmlspecialchars((string) ($activeInstitute['website'] ?? '')) ?>">
+                </div>
+            </div>
+
+            <label class="field">Opening Hours</label>
+            <textarea name="opening_hours" placeholder="e.g. Monday – Saturday: 7:30 AM – 7:00 PM&#10;Sunday: 8:00 AM – 5:00 PM"><?= htmlspecialchars((string) ($activeInstitute['opening_hours'] ?? '')) ?></textarea>
+
+            <label class="field">Registration Information</label>
+            <textarea name="registration_info" placeholder="How prospective students or parents can register or enroll in classes"><?= htmlspecialchars((string) ($activeInstitute['registration_info'] ?? '')) ?></textarea>
+
+            <label class="field">Facilities / Services</label>
+            <textarea name="facilities_services" placeholder="e.g. AC lecture halls, library, cafeteria, digital attendance tracking"><?= htmlspecialchars((string) ($activeInstitute['facilities_services'] ?? '')) ?></textarea>
+
+            <label class="field">Public Notes (Optional announcements or guidance)</label>
+            <textarea name="public_notes" placeholder="Any special public guidance for website visitors"><?= htmlspecialchars((string) ($activeInstitute['public_notes'] ?? '')) ?></textarea>
 
             <label class="field">Allowed Website Domains</label>
             <input type="text" name="allowed_domains" maxlength="500" placeholder="e.g. academy.lk, www.academy.lk, localhost"
@@ -200,7 +230,34 @@ $permissionHelp = [
             <small class="muted">Comma-separated domains where the assistant widget may be embedded. (Localhost allowed in DEV_MODE).</small>
         </div>
 
-        <!-- Assistant Settings -->
+        <!-- Section 2: Public AI Features -->
+        <div class="card">
+            <h2>Public AI Features</h2>
+            <div class="note">
+                Toggle which capabilities Gemini is allowed to use for this institute. Disabled categories will never expose corresponding AI tools to Gemini.
+            </div>
+
+            <?php
+            $permissionOrder = ['institute_details', 'class_details', 'teacher_details', 'new_courses', 'attendance_details'];
+            foreach ($permissionOrder as $key):
+                $p = $permissions[$key] ?? ['name' => ucfirst(str_replace('_', ' ', $key)), 'enabled' => true];
+            ?>
+                <label class="permission">
+                    <input
+                        type="checkbox"
+                        name="permissions[]"
+                        value="<?= htmlspecialchars($key) ?>"
+                        <?= !empty($p['enabled']) ? 'checked' : '' ?>
+                    >
+                    <span>
+                        <strong><?= htmlspecialchars((string) $p['name']) ?></strong>
+                        <small><?= htmlspecialchars($permissionHelp[$key] ?? '') ?></small>
+                    </span>
+                </label>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Section 3: Assistant Identity & Prompting -->
         <div class="card">
             <h2>Assistant Identity</h2>
 
@@ -209,37 +266,20 @@ $permissionHelp = [
                    value="<?= htmlspecialchars((string) ($assistant['name'] ?? 'Achieve AI')) ?>">
 
             <label class="field">Header Subtitle</label>
-            <input type="text" name="header_subtitle" maxlength="255" placeholder="e.g. Virtual Assistant"
+            <input type="text" name="header_subtitle" maxlength="255" placeholder="e.g. AI Assistant"
                    value="<?= htmlspecialchars((string) ($assistant['header_subtitle'] ?? 'AI Assistant')) ?>">
 
             <label class="field">Welcome Message</label>
             <textarea name="welcome_message" required><?= htmlspecialchars((string) ($assistant['welcome_message'] ?? 'Hello! How can I help you today?')) ?></textarea>
+
+            <label class="field">Description</label>
+            <textarea name="description"><?= htmlspecialchars((string) ($assistant['description'] ?? '')) ?></textarea>
+
+            <label class="field">Purpose</label>
+            <textarea name="purpose"><?= htmlspecialchars((string) ($assistant['purpose'] ?? '')) ?></textarea>
         </div>
 
-        <!-- Feature Switches -->
-        <div class="card">
-            <h2>Public Feature Permissions</h2>
-            <div class="note">
-                Toggle which capabilities Gemini is allowed to use for this institute. Disabled categories will never expose corresponding AI tools.
-            </div>
-
-            <?php foreach ($permissions as $key => $permission): ?>
-                <label class="permission">
-                    <input
-                        type="checkbox"
-                        name="permissions[]"
-                        value="<?= htmlspecialchars($key) ?>"
-                        <?= !empty($permission['enabled']) ? 'checked' : '' ?>
-                    >
-                    <span>
-                        <strong><?= htmlspecialchars((string) $permission['name']) ?></strong>
-                        <small><?= htmlspecialchars($permissionHelp[$key] ?? '') ?></small>
-                    </span>
-                </label>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Appearance & Theme -->
+        <!-- Section 4: Chat Appearance & Design -->
         <div class="card">
             <h2>Chat Appearance & Design</h2>
 
@@ -301,23 +341,12 @@ $permissionHelp = [
             </div>
         </div>
 
-        <!-- Starter Messages -->
+        <!-- Section 5: Starter Messages -->
         <div class="card">
             <h2>Starter Messages</h2>
             <label class="field">Suggested Question Buttons</label>
-            <textarea name="starter_messages" rows="5" placeholder="What classes do you offer?&#10;Who teaches Combined Mathematics?&#10;Show my attendance&#10;What time is Mathematics class?"><?= htmlspecialchars($starterLines) ?></textarea>
+            <textarea name="starter_messages" rows="6"><?= htmlspecialchars($starterLines) ?></textarea>
             <small class="muted" style="display:block;margin-top:6px;">Enter one suggested question per line.</small>
-        </div>
-
-        <!-- Purpose & Description -->
-        <div class="card">
-            <h2>Purpose & Instructions for Gemini</h2>
-
-            <label class="field">Description</label>
-            <textarea name="description"><?= htmlspecialchars((string) ($assistant['description'] ?? '')) ?></textarea>
-
-            <label class="field">Purpose</label>
-            <textarea name="purpose"><?= htmlspecialchars((string) ($assistant['purpose'] ?? '')) ?></textarea>
         </div>
 
         <button class="save" type="submit">Save Institute Settings</button>

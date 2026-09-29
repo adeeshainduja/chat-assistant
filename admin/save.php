@@ -52,7 +52,7 @@ if (is_array($starterLines)) {
         }
         $line = mb_substr($line, 0, 150);
         $starters[] = $line;
-        if (count($starters) >= 8) {
+        if (count($starters) >= 10) {
             break;
         }
     }
@@ -65,6 +65,16 @@ $starterMessagesJson = $starters !== []
 $instituteData = [
     'name' => mb_substr(trim((string) ($_POST['institute_name'] ?? 'Achieve Institute')), 0, 255),
     'allowed_domains' => trim((string) ($_POST['allowed_domains'] ?? '')),
+    'short_description' => mb_substr(trim((string) ($_POST['short_description'] ?? '')), 0, 500),
+    'about_institute' => mb_substr(trim((string) ($_POST['about_institute'] ?? '')), 0, 10000),
+    'public_address' => mb_substr(trim((string) ($_POST['public_address'] ?? '')), 0, 500),
+    'public_phone' => mb_substr(trim((string) ($_POST['public_phone'] ?? '')), 0, 100),
+    'public_email' => mb_substr(trim((string) ($_POST['public_email'] ?? '')), 0, 255),
+    'website' => mb_substr(trim((string) ($_POST['website'] ?? '')), 0, 255),
+    'opening_hours' => mb_substr(trim((string) ($_POST['opening_hours'] ?? '')), 0, 2000),
+    'registration_info' => mb_substr(trim((string) ($_POST['registration_info'] ?? '')), 0, 5000),
+    'facilities_services' => mb_substr(trim((string) ($_POST['facilities_services'] ?? '')), 0, 5000),
+    'public_notes' => mb_substr(trim((string) ($_POST['public_notes'] ?? '')), 0, 5000),
 ];
 
 $assistantSettings = [
