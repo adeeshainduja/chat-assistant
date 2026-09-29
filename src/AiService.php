@@ -104,12 +104,14 @@ final class AiService
             foreach ($calls as $call) {
                 $result = $this->executeTool($call, $permissions, $instituteId);
 
+                $toolResponse = (isset($result['verified']))
+                    ? $result
+                    : ['result' => $result];
+
                 $respPart = [
                     'functionResponse' => [
                         'name' => $call['name'],
-                        'response' => [
-                            'result' => $result,
-                        ],
+                        'response' => $toolResponse,
                     ],
                 ];
 
@@ -204,33 +206,46 @@ NEW_ENABLED;
             $attendanceSection = <<<ATTN_DISABLED
 ATTENDANCE ACCESS: DISABLED
 - Attendance lookup has been turned OFF by the administrator for this institute.
-- If anyone asks for attendance (e.g. 'Show my attendance', 'Check attendance', 'Was I present'):
+- If anyone asks for attendance (e.g. 'Show my attendance', 'Check attendance', 'Was I present?', 'My attendance'):
   You MUST reply:
   "Attendance lookup is not available through this assistant."
-- Do NOT ask for student full name or parent name. Do not attempt verification.
+- Do NOT ask for Student ID / Index Number or Parent Mobile Number. Do not attempt verification.
 ATTN_DISABLED;
         } else {
             $attendanceSection = <<<ATTN_ENABLED
 ATTENDANCE PRIVACY & VERIFICATION FLOW:
-- Attendance is STRICTLY PRIVATE.
-- When a visitor asks to check attendance (e.g. 'Show my attendance', 'Check attendance', 'Was I present'):
-  DO NOT call any tool yet.
-  Ask the visitor:
-  "To check attendance, please provide the student's full name and parent/guardian's full name."
-- When the visitor provides the student name and parent/guardian name:
-  Call `verify_student_for_attendance` with `student_name` and `parent_name`.
-- If `verify_student_for_attendance` returns `{"verified": false}`:
+Attendance information is private.
+
+When a visitor requests attendance and has not yet been verified (e.g. 'Check my attendance', 'Show my attendance', 'Was I present?', 'My attendance'):
+Do NOT call any tool yet.
+Ask for:
+1. Student ID / Index Number
+2. Parent Mobile Number
+
+Example prompt:
+"To check attendance, please provide:
+
+• Student ID / Index Number
+• Parent Mobile Number"
+
+CRITICAL INSTRUCTIONS:
+- Do NOT ask for student full name, parent name, or student database ID.
+- Never request or expose the internal database student ID (students.id).
+- Call verify_student_for_attendance only after both Student ID / Index Number and Parent Mobile Number have been provided.
+- If verify_student_for_attendance returns {"verified": false}:
+  Give only a generic verification failure message:
+  "I couldn't verify those details. Please check your Student ID / Index Number and Parent Mobile Number and try again."
+  CRITICAL: DO NOT say whether the student exists, whether the mobile is wrong, or which field failed. Do not disclose any clues.
+- If verify_student_for_attendance returns {"verified": true}:
   Reply:
-  "I couldn't verify those details. Please check the student and parent/guardian names and try again."
-  CRITICAL: Do NOT disclose whether the student exists, whether the parent name is wrong, or which field failed.
-- If `verify_student_for_attendance` returns `{"verified": true}`:
-  Confirm verification:
-  "Thank you. Your details were verified. Would you like your recent attendance or attendance for a specific date?"
-  Then call `get_verified_student_attendance` (with optional `date` if the user requested a specific date).
-- If `get_verified_student_attendance` returns no records for a specific date:
+  "Thanks, your details have been verified. Would you like to see your recent attendance or attendance for a specific date?"
+  Then call get_verified_student_attendance (with optional date if the user requested a specific date).
+- If get_verified_student_attendance returns no records for a specific date:
   Say: "I don't have an attendance record for that date." (Do NOT automatically say the student was absent).
-- ATTENDANCE DOES NOT UNLOCK OTHER DATA:
-  Successful verification unlocks ATTENDANCE ONLY. Never expose student profile, contact numbers, NIC, addresses, fees, payments, or exam results.
+- ATTENDANCE ONLY:
+  After verification succeeds, attendance is the only private feature that becomes available.
+  Successful verification unlocks ONLY attendance.
+  Never unlock or expose student profile, student phone, parent phone, address, NIC, email, fees, payments, exam results, marks, documents, or other students' information.
 ATTN_ENABLED;
         }
 
@@ -415,20 +430,20 @@ PROMPT;
         if (!empty($permissions['attendance_details']['enabled'])) {
             $declarations[] = [
                 'name' => 'verify_student_for_attendance',
-                'description' => 'Verify a student identity for private attendance access. Requires the student full name and the parent or guardian full name. Both must match the same student.',
+                'description' => 'Verify a student for attendance access using the student\'s public Student ID / Index Number and the parent/guardian mobile number.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'student_name' => [
+                        'student_index_number' => [
                             'type' => 'STRING',
-                            'description' => 'Full name of the student.',
+                            'description' => 'The public Student ID / Index Number (e.g. STU-2026-001 or STU0001). Never use internal database ID.',
                         ],
-                        'parent_name' => [
+                        'parent_mobile_number' => [
                             'type' => 'STRING',
-                            'description' => 'Full name of the parent or guardian.',
+                            'description' => 'The parent/guardian mobile phone number (e.g. 0771234567 or +94771234567).',
                         ],
                     ],
-                    'required' => ['student_name', 'parent_name'],
+                    'required' => ['student_index_number', 'parent_mobile_number'],
                 ],
             ];
 
@@ -505,16 +520,16 @@ PROMPT;
                 )
             ),
 
-            'verify_student_for_attendance' => $this->requireAndRun(
-                $permissions,
-                'attendance_details',
-                function () use ($arguments, $instituteId) {
-                    $studentName = isset($arguments['student_name']) ? (string) $arguments['student_name'] : '';
-                    $parentName = isset($arguments['parent_name']) ? (string) $arguments['parent_name'] : '';
-
-                    return AttendanceVerification::verify($studentName, $parentName, $instituteId);
+            'verify_student_for_attendance' => (function () use ($permissions, $arguments, $instituteId) {
+                if (empty($permissions['attendance_details']['enabled'])) {
+                    return ['verified' => false];
                 }
-            ),
+
+                $indexNumber = isset($arguments['student_index_number']) ? (string) $arguments['student_index_number'] : '';
+                $parentMobile = isset($arguments['parent_mobile_number']) ? (string) $arguments['parent_mobile_number'] : '';
+
+                return AttendanceVerification::verify($indexNumber, $parentMobile, $instituteId);
+            })(),
 
             'get_verified_student_attendance' => $this->requireAndRun(
                 $permissions,
@@ -523,7 +538,7 @@ PROMPT;
                     if (!AttendanceVerification::isSessionVerified($instituteId)) {
                         return [
                             'ok' => false,
-                            'error' => 'Please provide the student\'s full name and parent/guardian\'s full name to check attendance.',
+                            'error' => 'Please provide your Student ID / Index Number and Parent Mobile Number to check attendance.',
                         ];
                     }
 

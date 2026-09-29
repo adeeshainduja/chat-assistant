@@ -8,16 +8,16 @@ final class AttendanceVerification
     private const SESSION_LIFETIME_SECONDS = 1800; // 30 minutes
 
     /**
-     * Verify student and parent/guardian full names against the database.
+     * Verify student public index number and parent mobile number against the database.
      *
-     * @param string $studentName Full name of the student
-     * @param string $parentName Full name of the parent/guardian
+     * @param string $studentIndexNumber Public Student ID / Index Number
+     * @param string $parentMobileNumber Parent or guardian mobile number
      * @param int $instituteId Current institute ID
      * @return array ['verified' => bool]
      */
     public static function verify(
-        string $studentName,
-        string $parentName,
+        string $studentIndexNumber,
+        string $parentMobileNumber,
         int $instituteId
     ): array {
         self::ensureSession();
@@ -27,10 +27,13 @@ final class AttendanceVerification
             return ['verified' => false];
         }
 
-        $normStudent = self::normalize($studentName);
-        $normParent = self::normalize($parentName);
+        $rawIndex = trim($studentIndexNumber);
+        $normIndex = mb_strtolower($rawIndex, 'UTF-8');
+        $cleanIndex = preg_replace('/[^a-zA-Z0-9]/', '', $normIndex) ?? '';
 
-        if ($normStudent === '' || $normParent === '') {
+        $normParentMobile = self::normalizeSriLankanMobile($parentMobileNumber);
+
+        if ($cleanIndex === '' || $normParentMobile === '') {
             self::recordFailure();
             return ['verified' => false];
         }
@@ -38,15 +41,19 @@ final class AttendanceVerification
         try {
             $pdo = GetmoreDatabase::connection();
 
-            // Check if students table has institute_id column
+            // Check if students table has institute_id, is_active, and student_reg_id columns
             $hasInstituteId = self::hasColumn($pdo, 'students', 'institute_id');
+            $hasIsActive = self::hasColumn($pdo, 'students', 'is_active');
+            $hasStudentRegId = self::hasColumn($pdo, 'students', 'student_reg_id');
+            $hasGuardianHome = self::hasColumn($pdo, 'guardians', 'home_number');
 
             $sql = "
                 SELECT
                     s.id AS student_id,
-                    s.first_name,
-                    s.last_name,
-                    g.name AS guardian_name
+                    s.index_number,
+                    " . ($hasStudentRegId ? "s.student_reg_id," : "NULL AS student_reg_id,") . "
+                    g.phone AS guardian_phone,
+                    " . ($hasGuardianHome ? "g.home_number AS guardian_home" : "NULL AS guardian_home") . "
                 FROM students s
                 INNER JOIN guardians g
                     ON g.student_id = s.id
@@ -60,6 +67,28 @@ final class AttendanceVerification
                 $params['institute_id'] = $instituteId;
             }
 
+            if ($hasIsActive) {
+                $sql .= " AND COALESCE(s.is_active, 1) = 1";
+            }
+
+            // Public Student ID / Index Number matching using prepared statements
+            if ($hasStudentRegId) {
+                $sql .= " AND (
+                    LOWER(TRIM(s.index_number)) = :exact_index
+                    OR LOWER(TRIM(COALESCE(s.student_reg_id, ''))) = :exact_index
+                    OR REPLACE(REPLACE(LOWER(s.index_number), '-', ''), ' ', '') = :clean_index
+                    OR REPLACE(REPLACE(LOWER(COALESCE(s.student_reg_id, '')), '-', ''), ' ', '') = :clean_index
+                )";
+            } else {
+                $sql .= " AND (
+                    LOWER(TRIM(s.index_number)) = :exact_index
+                    OR REPLACE(REPLACE(LOWER(s.index_number), '-', ''), ' ', '') = :clean_index
+                )";
+            }
+
+            $params['exact_index'] = $normIndex;
+            $params['clean_index'] = $cleanIndex;
+
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -67,48 +96,39 @@ final class AttendanceVerification
             $matchedStudentId = null;
 
             foreach ($candidates as $row) {
-                $dbFirstName = self::normalize((string) ($row['first_name'] ?? ''));
-                $dbLastName = self::normalize((string) ($row['last_name'] ?? ''));
-                $dbFullName = trim($dbFirstName . ' ' . $dbLastName);
-                $dbGuardianName = self::normalize((string) ($row['guardian_name'] ?? ''));
+                $dbIndex = mb_strtolower(trim((string) ($row['index_number'] ?? '')), 'UTF-8');
+                $dbRegId = mb_strtolower(trim((string) ($row['student_reg_id'] ?? '')), 'UTF-8');
+                $cleanDbIndex = preg_replace('/[^a-zA-Z0-9]/', '', $dbIndex) ?? '';
+                $cleanDbRegId = preg_replace('/[^a-zA-Z0-9]/', '', $dbRegId) ?? '';
 
-                // Student name match: matches full name, or matches single name if no last name
-                $studentMatches = false;
-                if ($normStudent === $dbFullName) {
-                    $studentMatches = true;
-                } elseif ($dbLastName === '' && $normStudent === $dbFirstName) {
-                    $studentMatches = true;
-                } elseif (str_contains($dbFullName, $normStudent) || str_contains($normStudent, $dbFullName)) {
-                    // Check word overlap for full name
-                    $inputWords = explode(' ', $normStudent);
-                    $dbWords = explode(' ', $dbFullName);
-                    $intersection = array_intersect($inputWords, $dbWords);
-                    if (count($intersection) >= 2 || (count($dbWords) === 1 && count($intersection) === 1)) {
-                        $studentMatches = true;
-                    }
+                $indexMatches = (
+                    $normIndex === $dbIndex ||
+                    ($dbRegId !== '' && $normIndex === $dbRegId) ||
+                    $cleanIndex === $cleanDbIndex ||
+                    ($cleanDbRegId !== '' && $cleanIndex === $cleanDbRegId)
+                );
+
+                if (!$indexMatches) {
+                    continue;
                 }
 
-                // Guardian name match: matches full name or word overlap
-                $guardianMatches = false;
-                if ($normParent === $dbGuardianName) {
-                    $guardianMatches = true;
-                } elseif (str_contains($dbGuardianName, $normParent) || str_contains($normParent, $dbGuardianName)) {
-                    $inputWords = explode(' ', $normParent);
-                    $dbWords = explode(' ', $dbGuardianName);
-                    $intersection = array_intersect($inputWords, $dbWords);
-                    if (count($intersection) >= 1 && (count($inputWords) === 1 || count($intersection) >= 2)) {
-                        $guardianMatches = true;
-                    }
-                }
+                // Verify parent mobile against guardian phone numbers in DB
+                $dbGuardianPhone = self::normalizeSriLankanMobile((string) ($row['guardian_phone'] ?? ''));
+                $dbGuardianHome = self::normalizeSriLankanMobile((string) ($row['guardian_home'] ?? ''));
 
-                if ($studentMatches && $guardianMatches) {
+                $mobileMatches = (
+                    ($dbGuardianPhone !== '' && $normParentMobile === $dbGuardianPhone) ||
+                    ($dbGuardianHome !== '' && $normParentMobile === $dbGuardianHome)
+                );
+
+                if ($mobileMatches) {
                     $matchedStudentId = (int) $row['student_id'];
                     break;
                 }
             }
 
             if ($matchedStudentId !== null && $matchedStudentId > 0) {
-                // Successful verification: save to server session
+                // Successful verification: save internal IDs SERVER-SIDE in session only
                 $_SESSION['attendance_verified'] = true;
                 $_SESSION['verified_student_id'] = $matchedStudentId;
                 $_SESSION['verified_institute_id'] = $instituteId;
@@ -124,7 +144,7 @@ final class AttendanceVerification
             self::recordFailure();
             return ['verified' => false];
 
-        } catch (Throwable $e) {
+        } catch (Throwable) {
             self::recordFailure();
             return ['verified' => false];
         }
@@ -147,8 +167,9 @@ final class AttendanceVerification
             return false;
         }
 
+        $ttl = (int) (Env::get('ATTENDANCE_VERIFICATION_TTL', '1800') ?: self::SESSION_LIFETIME_SECONDS);
         $verifiedAt = (int) $_SESSION['attendance_verified_at'];
-        if ((time() - $verifiedAt) > self::SESSION_LIFETIME_SECONDS) {
+        if ((time() - $verifiedAt) > $ttl) {
             self::clearVerification();
             return false;
         }
@@ -182,6 +203,47 @@ final class AttendanceVerification
             $_SESSION['verified_institute_id'],
             $_SESSION['attendance_verified_at']
         );
+    }
+
+    /**
+     * Safely normalize Sri Lankan mobile numbers into a canonical 10-digit format (07XXXXXXXX).
+     *
+     * Handles formats:
+     * - 0771234567
+     * - +94771234567
+     * - 0094771234567
+     * - 94771234567
+     * - 771234567
+     * - 077-123-4567 / 077 123 4567
+     */
+    public static function normalizeSriLankanMobile(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '0094')) {
+            $digits = substr($digits, 4);
+        } elseif (str_starts_with($digits, '94')) {
+            $digits = substr($digits, 2);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        // Standard Sri Lankan numbers have 9 significant digits (e.g. 7XXXXXXXX)
+        if (strlen($digits) === 9) {
+            return '0' . $digits;
+        }
+
+        if (strlen($digits) === 10 && str_starts_with($digits, '0')) {
+            return $digits;
+        }
+
+        return $digits;
     }
 
     /**
@@ -258,3 +320,4 @@ final class AttendanceVerification
         }
     }
 }
+

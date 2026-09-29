@@ -476,10 +476,9 @@ final class GetmoreConnector
             $pdo = GetmoreDatabase::connection();
             return $this->verifiedAttendanceFromDatabase($studentId, $instituteId, $date);
         } catch (Throwable) {
-            // Strictly report API limitation as mandated by Section 13
             return [
                 'ok' => false,
-                'error' => 'Current GETMORE Attendance API requires student index and parent phone, and does not support the required student-name + parent-name verification flow. Please contact the institute directly.',
+                'error' => 'Attendance lookup is currently unavailable. Please contact the institute directly.',
             ];
         }
     }
