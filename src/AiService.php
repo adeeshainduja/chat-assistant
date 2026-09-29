@@ -468,9 +468,9 @@ PROMPT;
                 $permissions,
                 'institute_details',
                 function () use ($instituteId) {
-                        $instRepo = new InstituteRepository(Database::connection());
-                        return $instRepo->getPublicDetails($instituteId);
-                    }
+                    $instRepo = new InstituteRepository(Database::connection());
+                    return $instRepo->getPublicDetails($instituteId);
+                }
             ),
 
             'get_public_classes' => $this->requireAndRun(
@@ -483,9 +483,9 @@ PROMPT;
                 $permissions,
                 'class_details',
                 function () use ($arguments, $instituteId) {
-                        $query = isset($arguments['query']) ? (string) $arguments['query'] : '';
-                        return $this->connector->searchClasses($instituteId, $query);
-                    }
+                    $query = isset($arguments['query']) ? (string) $arguments['query'] : '';
+                    return $this->connector->searchClasses($instituteId, $query);
+                }
             ),
 
             'get_new_public_classes' => $this->requireAndRun(
@@ -500,8 +500,8 @@ PROMPT;
                 fn() => $this->connector->publicTeachers(
                     $instituteId,
                     isset($arguments['teacher_name']) && is_string($arguments['teacher_name'])
-                    ? trim($arguments['teacher_name'])
-                    : null
+                        ? trim($arguments['teacher_name'])
+                        : null
                 )
             ),
 
@@ -509,38 +509,38 @@ PROMPT;
                 $permissions,
                 'attendance_details',
                 function () use ($arguments, $instituteId) {
-                        $studentName = isset($arguments['student_name']) ? (string) $arguments['student_name'] : '';
-                        $parentName = isset($arguments['parent_name']) ? (string) $arguments['parent_name'] : '';
+                    $studentName = isset($arguments['student_name']) ? (string) $arguments['student_name'] : '';
+                    $parentName = isset($arguments['parent_name']) ? (string) $arguments['parent_name'] : '';
 
-                        return AttendanceVerification::verify($studentName, $parentName, $instituteId);
-                    }
+                    return AttendanceVerification::verify($studentName, $parentName, $instituteId);
+                }
             ),
 
             'get_verified_student_attendance' => $this->requireAndRun(
                 $permissions,
                 'attendance_details',
                 function () use ($arguments, $instituteId) {
-                        if (!AttendanceVerification::isSessionVerified($instituteId)) {
-                            return [
+                    if (!AttendanceVerification::isSessionVerified($instituteId)) {
+                        return [
                             'ok' => false,
                             'error' => 'Please provide the student\'s full name and parent/guardian\'s full name to check attendance.',
-                            ];
-                        }
+                        ];
+                    }
 
-                        $studentId = AttendanceVerification::getVerifiedStudentId($instituteId);
-                        if ($studentId === null) {
-                            return [
+                    $studentId = AttendanceVerification::getVerifiedStudentId($instituteId);
+                    if ($studentId === null) {
+                        return [
                             'ok' => false,
                             'error' => 'Attendance verification expired. Please verify details again.',
-                            ];
-                        }
+                        ];
+                    }
 
-                        $date = isset($arguments['date']) && is_string($arguments['date']) && trim($arguments['date']) !== ''
+                    $date = isset($arguments['date']) && is_string($arguments['date']) && trim($arguments['date']) !== ''
                         ? trim($arguments['date'])
                         : null;
 
-                        return $this->connector->verifiedStudentAttendance($studentId, $instituteId, $date);
-                    }
+                    return $this->connector->verifiedStudentAttendance($studentId, $instituteId, $date);
+                }
             ),
 
             default => [

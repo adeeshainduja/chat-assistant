@@ -10,7 +10,7 @@ final class InstituteIntegrationRepository
     public function getByInstituteId(int $instituteId): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT * FROM institute_integrations WHERE institute_id = ? AND provider = "getmore" LIMIT 1'
+            'SELECT * FROM Ai_institute_integrations WHERE institute_id = ? AND provider = "getmore" LIMIT 1'
         );
         $stmt->execute([$instituteId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -50,7 +50,7 @@ final class InstituteIntegrationRepository
 
         if ($existing) {
             $stmt = $this->pdo->prepare(
-                'UPDATE institute_integrations
+                'UPDATE Ai_institute_integrations
                  SET api_base_url = ?,
                      encrypted_api_key = ?,
                      classes_endpoint = ?,
@@ -73,7 +73,7 @@ final class InstituteIntegrationRepository
             ]);
         } else {
             $stmt = $this->pdo->prepare(
-                'INSERT INTO institute_integrations (
+                'INSERT INTO Ai_institute_integrations (
                     institute_id, provider, api_base_url, encrypted_api_key,
                     classes_endpoint, lecturers_endpoint, extra_classes_endpoint,
                     attendance_endpoint, is_active
