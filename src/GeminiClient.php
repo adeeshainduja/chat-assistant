@@ -87,9 +87,9 @@ final class GeminiClient
 
             curl_close($ch);
 
-            // Retry on temporary high demand / rate limit
-            if (($status === 503 || $status === 429) && $attempt < $maxAttempts) {
-                sleep($status === 429 ? 5 : 2);
+            // Retry on temporary server errors / high demand / rate limit
+            if (in_array($status, [429, 500, 502, 503, 504], true) && $attempt < $maxAttempts) {
+                sleep($status === 429 ? 3 : 1);
                 continue;
             }
 
