@@ -15,6 +15,9 @@ if (!Csrf::verify($_POST['csrf_token'] ?? null)) {
     exit('Invalid CSRF token.');
 }
 
+$instituteId = isset($_POST['institute_id']) ? (int) $_POST['institute_id'] : 1;
+$assistantId = isset($_POST['assistant_id']) ? (int) $_POST['assistant_id'] : 1;
+
 $colorRegex = '/^#[0-9A-Fa-f]{6}$/';
 $sanitizeColor = static function (?string $value, string $default) use ($colorRegex): string {
     $value = trim((string) $value);
@@ -31,6 +34,7 @@ $themeHeaderText = $sanitizeColor($_POST['theme_header_text_color'] ?? null, '#F
 $userBubble = $sanitizeColor($_POST['user_bubble_color'] ?? null, '#ECFDF3');
 $assistantBubble = $sanitizeColor($_POST['assistant_bubble_color'] ?? null, '#EAEAEA');
 $chatBg = $sanitizeColor($_POST['chat_background_color'] ?? null, '#FFFFFF');
+
 $headerSubtitle = mb_substr(trim((string) ($_POST['header_subtitle'] ?? 'AI Assistant')), 0, 255);
 if ($headerSubtitle === '') {
     $headerSubtitle = 'AI Assistant';
@@ -58,8 +62,13 @@ $starterMessagesJson = $starters !== []
     ? json_encode($starters, JSON_UNESCAPED_UNICODE)
     : null;
 
-$settings = [
-    'name' => mb_substr(trim((string) ($_POST['name'] ?? 'GETMORE AI')), 0, 255),
+$instituteData = [
+    'name' => mb_substr(trim((string) ($_POST['institute_name'] ?? 'Achieve Institute')), 0, 255),
+    'allowed_domains' => trim((string) ($_POST['allowed_domains'] ?? '')),
+];
+
+$assistantSettings = [
+    'name' => mb_substr(trim((string) ($_POST['name'] ?? 'Achieve AI')), 0, 255),
     'welcome_message' => mb_substr(trim((string) ($_POST['welcome_message'] ?? '')), 0, 5000),
     'description' => mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 10000),
     'purpose' => mb_substr(trim((string) ($_POST['purpose'] ?? '')), 0, 10000),
@@ -80,7 +89,7 @@ $permissions = is_array($_POST['permissions'] ?? null)
     : [];
 
 $repository = new AssistantRepository(Database::connection());
-$repository->save(1, $settings, $permissions);
+$repository->saveAssistantAndInstitute($assistantId, $instituteId, $instituteData, $assistantSettings, $permissions);
 
-header('Location: ' . ai_base_path() . '/admin/index.php?saved=1');
+header('Location: ' . ai_base_path() . '/admin/index.php?institute_id=' . $instituteId . '&saved=1');
 exit;
