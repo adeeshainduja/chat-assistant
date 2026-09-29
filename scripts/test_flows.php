@@ -34,14 +34,14 @@ $history[] = ['role' => 'user', 'content' => 'Show my attendance'];
 $history[] = ['role' => 'assistant', 'content' => $reply];
 
 echo "=== TEST 5: Failed Verification ===\n";
-$failReply = $service->reply("Student: Saman Bandara\nParent: Wrong Parent Name", $history, 'pk_achieve_72af8391');
+$failReply = $service->reply("Student ID: STU0001\nParent Mobile: 0770000000", $history, 'pk_achieve_72af8391');
 echo "AI: $failReply\n\n";
 
 echo "=== TEST 6: Successful Verification ===\n";
-// Student 1: Saman Bandara, Guardian: Sunil Bandara
-$successReply = $service->reply("Student: Saman Bandara\nParent: Sunil Bandara", $history, 'pk_achieve_72af8391');
+// Student 1: Index STU0001, Guardian Phone: 0719876543
+$successReply = $service->reply("Student ID: STU0001\nParent Mobile: 0719876543", $history, 'pk_achieve_72af8391');
 echo "AI: $successReply\n\n";
-$history[] = ['role' => 'user', 'content' => "Student: Saman Bandara\nParent: Sunil Bandara"];
+$history[] = ['role' => 'user', 'content' => "Student ID: STU0001\nParent Mobile: 0719876543"];
 $history[] = ['role' => 'assistant', 'content' => $successReply];
 
 echo "Session State after verification:\n";

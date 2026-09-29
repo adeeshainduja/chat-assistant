@@ -69,9 +69,9 @@ $history[] = ['role' => 'assistant', 'content' => $reply8];
 echo "==================================================\n";
 echo "TEST 9: Attendance Verification + Attendance Query\n";
 echo "==================================================\n";
-$reply9 = $service->reply("Student: Saman Bandara\nParent: Sunil Bandara", $history, $widgetKey);
+$reply9 = $service->reply("Student ID: STU0001\nParent Mobile: 0719876543", $history, $widgetKey);
 echo "AI (Verification): $reply9\n\n";
-$history[] = ['role' => 'user', 'content' => "Student: Saman Bandara\nParent: Sunil Bandara"];
+$history[] = ['role' => 'user', 'content' => "Student ID: STU0001\nParent Mobile: 0719876543"];
 $history[] = ['role' => 'assistant', 'content' => $reply9];
 
 $reply10 = $service->reply("Show my recent attendance", $history, $widgetKey);
