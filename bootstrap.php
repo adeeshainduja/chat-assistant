@@ -16,6 +16,8 @@ if (is_file(APP_ROOT . '/src/GetmoreDatabase.php')) {
     require_once APP_ROOT . '/src/GetmoreDatabase.php';
 }
 require_once APP_ROOT . '/src/Token.php';
+require_once APP_ROOT . '/src/InstituteRepository.php';
+require_once APP_ROOT . '/src/AttendanceVerification.php';
 require_once APP_ROOT . '/src/AssistantRepository.php';
 require_once APP_ROOT . '/src/AdminAuth.php';
 require_once APP_ROOT . '/src/Csrf.php';

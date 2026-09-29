@@ -13,13 +13,29 @@ final class AiService
     public function reply(
         string $message,
         array $history = [],
+        string $widgetKey = '',
         int $assistantId = 1
     ): string {
-        $assistant = $this->repository->getAssistant($assistantId);
-
-        if (!(bool) ($assistant['enabled'] ?? 0)) {
-            return 'The AI assistant is currently unavailable.';
+        $assistant = null;
+        if ($widgetKey !== '') {
+            $assistant = $this->repository->getByWidgetKey($widgetKey);
+            if (!$assistant) {
+                return 'This assistant is currently unavailable.';
+            }
+        } else {
+            $assistant = $this->repository->getAssistant($assistantId);
         }
+
+        if (!$assistant || !(bool) ($assistant['enabled'] ?? 0)) {
+            return 'This assistant is currently unavailable.';
+        }
+
+        if (isset($assistant['institute_active']) && !(bool) $assistant['institute_active']) {
+            return 'This assistant is currently unavailable.';
+        }
+
+        $instituteId = (int) ($assistant['institute_id'] ?? 1);
+        $assistantId = (int) $assistant['id'];
 
         $permissions = $this->repository->getPermissions($assistantId);
         $tools = $this->buildTools($permissions);
@@ -28,7 +44,7 @@ final class AiService
         $payload = [
             'system_instruction' => [
                 'parts' => [
-                    ['text' => $this->buildInstructions($assistant)],
+                    ['text' => $this->buildInstructions($assistant, $permissions)],
                 ],
             ],
             'contents' => $contents,
@@ -40,7 +56,7 @@ final class AiService
 
         /*
          * Gemini can request one or more functions.
-         * We allow up to 4 tool rounds for one student message.
+         * We allow up to 4 tool rounds for one user query.
          */
         for ($round = 0; $round < 4; $round++) {
             $response = $this->client->generateContent($payload);
@@ -54,7 +70,7 @@ final class AiService
             $calls = $this->extractFunctionCalls($modelContent);
 
             /*
-             * No tool call means Gemini has produced the final student answer.
+             * No tool call means Gemini has produced the final answer.
              */
             if ($calls === []) {
                 $text = $this->extractText($modelContent);
@@ -86,7 +102,7 @@ final class AiService
 
             $functionResponseParts = [];
             foreach ($calls as $call) {
-                $result = $this->executeTool($call, $permissions);
+                $result = $this->executeTool($call, $permissions, $instituteId);
 
                 $respPart = [
                     'functionResponse' => [
@@ -113,14 +129,62 @@ final class AiService
         return 'I could not complete that request. Please try again.';
     }
 
-    private function buildInstructions(array $assistant): string
+    private function buildInstructions(array $assistant, array $permissions): string
     {
-        $name = (string) $assistant['name'];
+        $assistantName = (string) ($assistant['name'] ?? 'GETMORE AI');
+        $instituteName = (string) ($assistant['institute_name'] ?? 'our institute');
         $description = (string) ($assistant['description'] ?? '');
         $purpose = (string) ($assistant['purpose'] ?? '');
 
+        $classEnabled = !empty($permissions['class_details']['enabled']);
+        $teacherEnabled = !empty($permissions['teacher_details']['enabled']);
+        $attendanceEnabled = !empty($permissions['attendance_details']['enabled']);
+
+        $classSection = $classEnabled
+            ? "- Class schedules, subjects, grades, mediums, class times, days, halls, and teacher names are public. When asked about classes or schedules: call `get_public_classes`."
+            : "- Class details lookup is disabled by the institute administrator. If asked about classes, state that class details are currently not available.";
+
+        $teacherSection = $teacherEnabled
+            ? "- When asked about teachers: call `get_public_teacher_details`."
+            : "- Teacher details lookup is disabled by the institute administrator. If asked about teachers, state that teacher details are currently not available.";
+
+        $attendanceSection = '';
+        if (!$attendanceEnabled) {
+            $attendanceSection = <<<ATTN_DISABLED
+ATTENDANCE ACCESS: DISABLED
+- Attendance lookup has been turned OFF by the administrator for this institute.
+- If anyone asks for attendance (e.g. "Show my attendance", "Check attendance", "Was I present"):
+  You MUST reply:
+  "Attendance lookup is not available through this assistant."
+- Do NOT ask for student full name or parent name. Do not attempt verification.
+ATTN_DISABLED;
+        } else {
+            $attendanceSection = <<<ATTN_ENABLED
+ATTENDANCE PRIVACY & VERIFICATION FLOW:
+- Attendance is STRICTLY PRIVATE.
+- When a visitor asks to check attendance (e.g. "Show my attendance", "Check attendance", "Was I present"):
+  DO NOT call any tool yet.
+  Ask the visitor:
+  "To check attendance, please provide the student's full name and parent/guardian's full name."
+- When the visitor provides the student name and parent/guardian name:
+  Call `verify_student_for_attendance` with `student_name` and `parent_name`.
+- If `verify_student_for_attendance` returns `{"verified": false}`:
+  Reply:
+  "I couldn't verify those details. Please check the student and parent/guardian names and try again."
+  CRITICAL: Do NOT disclose whether the student exists, whether the parent name is wrong, or which field failed.
+- If `verify_student_for_attendance` returns `{"verified": true}`:
+  Confirm verification:
+  "Thank you. Your details were verified. Would you like your recent attendance or attendance for a specific date?"
+  Then call `get_verified_student_attendance` (with optional `date` if the user requested a specific date).
+- If `get_verified_student_attendance` returns no records for a specific date:
+  Say: "I don't have an attendance record for that date." (Do NOT automatically say the student was absent).
+- ATTENDANCE DOES NOT UNLOCK OTHER DATA:
+  Successful verification unlocks ATTENDANCE ONLY. Never expose student profile, contact numbers, NIC, addresses, fees, payments, or exam results.
+ATTN_ENABLED;
+        }
+
         return <<<PROMPT
-You are {$name}, the student-facing AI assistant for the GETMORE tuition class system.
+You are {$assistantName}, the official public AI Assistant for {$instituteName}.
 
 ADMIN DESCRIPTION:
 {$description}
@@ -128,90 +192,35 @@ ADMIN DESCRIPTION:
 ADMIN PURPOSE:
 {$purpose}
 
-SCOPE:
-Your job is to help authenticated students with information available through the GETMORE education system.
-You may help with:
-- Student's enrolled classes
-- Class schedules
-- Next class
-- Student's own attendance
-- Attendance for a specific date
-- Teacher information available through approved tools
-- General guidance about using the GETMORE student system
+SCOPE & BEHAVIOR:
+- You help public visitors, prospective students, students, and parents with information regarding {$instituteName}.
+- You must speak clearly, politely, naturally, and warmly.
+- Keep responses concise, helpful, and non-technical.
 
-You must NOT act as a general-purpose AI assistant.
-If the student asks about something unrelated to GETMORE, tuition classes, their attendance, teachers, schedules, or the student portal (e.g., "How do I learn Python?", general tutoring, recipes, trivia, etc.), politely explain:
-"I'm your GETMORE student assistant, so I can help with your classes, schedules, attendance, and teachers.
+GREETINGS:
+- For simple greetings like "hi", "hello", "good morning", respond naturally and warmly:
+  "Hello! How can I help you with {$instituteName} today?"
+- Do NOT call database tools for a simple greeting.
 
-Try asking:
-• What classes do I have?
-• When is my next class?
-• Show my attendance
-• Who are my teachers?"
-Do not provide a full answer to unrelated questions. Keep this out-of-scope response short.
+PUBLIC INFORMATION:
+{$classSection}
+{$teacherSection}
 
-GREETING BEHAVIOR:
-For simple greetings such as "hi", "hello", "hey", "good morning", "good afternoon", reply naturally and briefly.
-Example:
-"Hello! How can I help you with your classes today?"
-Do NOT call database tools for a simple greeting.
+{$attendanceSection}
 
-ANSWER STYLE:
-- Answers must be clear, short, friendly, and easy for students to understand.
-- Based only on retrieved information.
-- Free of unnecessary technical details. Never mention: SQL, API, database, Gemini, function calls, tool calls, student IDs, internal class IDs (unless specifically requested), or internal technical errors.
-- Do NOT say: "According to the function response...", "The database returned...", or "The API says...". Speak naturally to the student.
-- Reply in the student's language where practical.
+OUT-OF-SCOPE QUESTIONS:
+- You are dedicated solely to {$instituteName}.
+- If someone asks something unrelated (e.g., "How do I learn Python?", programming questions, recipes, trivia, weather):
+  Politely and briefly reply:
+  "I'm the AI assistant for {$instituteName}. I can help with classes, schedules, teachers, and attendance information."
+  Do not act as a general-purpose chatbot.
 
-CLASS ANSWERS:
-- List enrolled classes clearly and naturally. Do not show internal Class IDs.
-- Highlight the next scheduled class cleanly. For example:
-  "You're enrolled in Combined Mathematics 2026 Theory.
-  Your next scheduled class is:
-  Monday, 8:30 AM – 10:30 AM."
-- If multiple classes exist, list them clearly.
-- If schedule information is missing for an enrolled class, say:
-  "I can see the class in your account, but its schedule has not been added yet."
-- Do NOT say the system failed if the class exists but simply has no schedule.
-
-ATTENDANCE ANSWERS:
-- For general attendance ("Show my attendance"), prefer clean bullet points:
-  "Here is your recent attendance:
-  • Sep 13 — Present
-  • Sep 12 — Present"
-  (Include the class name once if useful).
-- For a specific date ("Was I present on 2026-09-12?"), prefer:
-  "Yes. You were marked present on September 12, 2026."
-- Do not expose enrollment IDs, attendance IDs, or class IDs.
-- IMPORTANT: If there is no attendance record for a date, do NOT automatically say the student was absent. Say:
-  "I don't have an attendance record for that date."
-
-TEACHER ANSWERS:
-- For "Who are my teachers?", return only approved teacher information.
-  Example:
-  "Your teacher for Combined Mathematics 2026 Theory is: Prof. Nimal Perera."
-- If a class has no teacher assigned:
-  "A teacher has not been assigned to that class yet."
-- Never expose: NIC, bank information, passwords, private phone numbers, financial information, or internal staff records.
-
-TOOL USAGE & SECURITY RULES:
-- The user is an authenticated student.
-- Use `get_my_classes` for: my classes, class schedule, next class, class times.
-- Use `get_my_attendance` for: attendance, whether I attended, attendance on a specific date.
-- Use `get_teacher_details` for: teacher, lecturer, who teaches my class.
-- Never invent database values. Only answer from approved tool results.
-- If a category has no available tool, say that information is not available through the student assistant.
-- Never ask for, accept, or use a student ID to access another student's information.
-- Attendance and class information is strictly restricted to the authenticated student.
-- Never provide another student's information, staff financial information, salaries, revenue, internal reports, passwords, credentials, API keys, database structure, SQL, or internal system configuration.
-
-FOLLOW-UP QUESTIONS:
-- Understand conversational follow-ups using conversation history. For example, if the student asks "When is the next one?", understand that it refers to the class mentioned earlier. If they ask "Was I there last week?", use the conversation context and attendance tool.
-
-ERROR HANDLING:
-- Never expose raw internal errors to students (e.g. Gemini API error, PDOException, SQLSTATE, RuntimeException).
-- If information cannot be retrieved, say:
-  "I couldn't retrieve that information right now. Please try again shortly."
+SECURITY RULES:
+- Never reveal internal database IDs, student IDs, class IDs, enrollment IDs, or internal table structure.
+- Never output SQL, API details, Gemini terminology, tool names, or code snippets.
+- Never reveal staff passwords, NICs, bank details, or private financial details.
+- Never access or reveal data from other institutes.
+- Do not invent database records. Rely strictly on retrieved tool results.
 PROMPT;
     }
 
@@ -221,38 +230,62 @@ PROMPT;
 
         if (!empty($permissions['class_details']['enabled'])) {
             $declarations[] = [
-                'name' => 'get_my_classes',
-                'description' => 'Return enrolled class details, schedules, next class, and class times for the authenticated student only.',
+                'name' => 'get_public_classes',
+                'description' => 'Return approved public class details, schedules, subjects, grades, mediums, days, times, halls, and teacher names for the current institute.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => new stdClass(),
-                ],
-            ];
-        }
-
-        if (!empty($permissions['attendance_details']['enabled'])) {
-            $declarations[] = [
-                'name' => 'get_my_attendance',
-                'description' => 'Return attendance records for the authenticated student only. Optionally filter by exact date in YYYY-MM-DD format.',
-                'parameters' => [
-                    'type' => 'OBJECT',
-                    'properties' => [
-                        'date' => [
-                            'type' => 'STRING',
-                            'description' => 'Optional date string in YYYY-MM-DD format. Omit if no specific date was requested.',
-                        ],
-                    ],
                 ],
             ];
         }
 
         if (!empty($permissions['teacher_details']['enabled'])) {
             $declarations[] = [
-                'name' => 'get_teacher_details',
-                'description' => 'Return approved teacher names and details associated with the authenticated student’s enrolled classes.',
+                'name' => 'get_public_teacher_details',
+                'description' => 'Return approved public teacher names and their assigned classes for the current institute.',
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => new stdClass(),
+                    'properties' => [
+                        'teacher_name' => [
+                            'type' => 'STRING',
+                            'description' => 'Optional teacher name to search for.',
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        if (!empty($permissions['attendance_details']['enabled'])) {
+            $declarations[] = [
+                'name' => 'verify_student_for_attendance',
+                'description' => 'Verify a student identity for private attendance access. Requires the student full name and the parent or guardian full name. Both must match the same student.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'student_name' => [
+                            'type' => 'STRING',
+                            'description' => 'Full name of the student.',
+                        ],
+                        'parent_name' => [
+                            'type' => 'STRING',
+                            'description' => 'Full name of the parent or guardian.',
+                        ],
+                    ],
+                    'required' => ['student_name', 'parent_name'],
+                ],
+            ];
+
+            $declarations[] = [
+                'name' => 'get_verified_student_attendance',
+                'description' => 'Retrieve attendance records for a student who was previously verified during this session. Do not call this if the user has not been verified yet.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'date' => [
+                            'type' => 'STRING',
+                            'description' => 'Optional exact date in YYYY-MM-DD format. Omit if general or recent attendance is requested.',
+                        ],
+                    ],
                 ],
             ];
         }
@@ -268,32 +301,65 @@ PROMPT;
         ];
     }
 
-    private function executeTool(array $call, array $permissions): array
+    private function executeTool(array $call, array $permissions, int $instituteId): array
     {
         $name = (string) ($call['name'] ?? '');
         $arguments = is_array($call['arguments'] ?? null) ? $call['arguments'] : [];
 
         return match ($name) {
-            'get_my_classes' => $this->requireAndRun(
+            'get_public_classes' => $this->requireAndRun(
                 $permissions,
                 'class_details',
-                fn() => $this->connector->myClasses()
+                fn() => $this->connector->publicClasses($instituteId)
             ),
 
-            'get_my_attendance' => $this->requireAndRun(
+            'get_public_teacher_details' => $this->requireAndRun(
                 $permissions,
-                'attendance_details',
-                fn() => $this->connector->myAttendance(
-                    isset($arguments['date']) && is_string($arguments['date']) && trim($arguments['date']) !== ''
-                        ? trim($arguments['date'])
+                'teacher_details',
+                fn() => $this->connector->publicTeachers(
+                    $instituteId,
+                    isset($arguments['teacher_name']) && is_string($arguments['teacher_name'])
+                        ? trim($arguments['teacher_name'])
                         : null
                 )
             ),
 
-            'get_teacher_details' => $this->requireAndRun(
+            'verify_student_for_attendance' => $this->requireAndRun(
                 $permissions,
-                'teacher_details',
-                fn() => $this->connector->myTeachers()
+                'attendance_details',
+                function () use ($arguments, $instituteId) {
+                    $studentName = isset($arguments['student_name']) ? (string) $arguments['student_name'] : '';
+                    $parentName = isset($arguments['parent_name']) ? (string) $arguments['parent_name'] : '';
+
+                    return AttendanceVerification::verify($studentName, $parentName, $instituteId);
+                }
+            ),
+
+            'get_verified_student_attendance' => $this->requireAndRun(
+                $permissions,
+                'attendance_details',
+                function () use ($arguments, $instituteId) {
+                    if (!AttendanceVerification::isSessionVerified($instituteId)) {
+                        return [
+                            'ok' => false,
+                            'error' => 'Please provide the student\'s full name and parent/guardian\'s full name to check attendance.',
+                        ];
+                    }
+
+                    $studentId = AttendanceVerification::getVerifiedStudentId($instituteId);
+                    if ($studentId === null) {
+                        return [
+                            'ok' => false,
+                            'error' => 'Attendance verification expired. Please verify details again.',
+                        ];
+                    }
+
+                    $date = isset($arguments['date']) && is_string($arguments['date']) && trim($arguments['date']) !== ''
+                        ? trim($arguments['date'])
+                        : null;
+
+                    return $this->connector->verifiedStudentAttendance($studentId, $instituteId, $date);
+                }
             ),
 
             default => [

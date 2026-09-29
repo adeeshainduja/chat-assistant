@@ -9,160 +9,176 @@ final class GetmoreConnector
     }
 
     /**
-     * Get classes belonging only to the current student.
+     * Return public class schedules and information belonging to the specified institute.
+     * Safe fields only: class name, subject, grade, medium, day, start time, end time, hall, teacher name, fee.
+     * No student data, no student IDs, no admin IDs.
      */
-    public function myClasses(): array
+    public function publicClasses(int $instituteId): array
     {
-        if ($this->isDevMode()) {
-            return $this->directMyClasses();
-        }
-
-        return $this->get('/api/ai/my-classes.php');
-    }
-
-    /**
-     * Get attendance belonging only to the current student.
-     */
-    public function myAttendance(?string $date = null): array
-    {
-        if ($this->isDevMode()) {
-            return $this->directMyAttendance($date);
-        }
-
-        $query = [];
-
-        if ($date !== null && $date !== '') {
-            $query['date'] = $date;
-        }
-
-        return $this->get(
-            '/api/ai/my-attendance.php',
-            $query
-        );
-    }
-
-    /**
-     * Get approved teacher information only.
-     */
-    public function myTeachers(): array
-    {
-        if ($this->isDevMode()) {
-            return $this->directMyTeachers();
-        }
-
-        return $this->get('/api/ai/teachers.php');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DEVELOPMENT / DIRECT DATABASE MODE
-    |--------------------------------------------------------------------------
-    */
-
-    private function directMyClasses(): array
-    {
-        $studentId = $this->studentId();
-
         $pdo = GetmoreDatabase::connection();
+        $hasInstituteId = $this->hasColumn($pdo, 'classes', 'institute_id');
 
         $sql = "
             SELECT
-                c.id AS class_id,
+                c.id AS class_id_internal,
                 c.name AS class_name,
-                c.lecturer_profile_id,
-
-                ha.day_name,
-                ha.start_time,
-                ha.end_time
-
-            FROM enrollments e
-
-            INNER JOIN classes c
-                ON c.id = e.class_id
-
+                lp.name AS teacher_name,
+                s.name AS subject_name,
+                g.name AS grade_name,
+                m.name AS medium_name,
+                COALESCE(ha.day_name, cd.day_name) AS day_name,
+                COALESCE(ha.start_time, c.start_time) AS raw_start_time,
+                COALESCE(ha.end_time, c.end_time) AS raw_end_time,
+                h.name AS hall_name,
+                h.location AS hall_location,
+                c.fee_amount
+            FROM classes c
+            LEFT JOIN lecturer_profiles lp
+                ON lp.id = c.lecturer_profile_id
+                AND COALESCE(lp.is_active, 1) = 1
+                AND COALESCE(lp.is_deleted, 0) = 0
+            LEFT JOIN subjects s
+                ON s.id = c.subject_id
+            LEFT JOIN grades g
+                ON g.id = c.grade_id
+            LEFT JOIN mediums m
+                ON m.id = c.medium_id
+            LEFT JOIN class_days cd
+                ON cd.id = c.day_id
             LEFT JOIN hall_allocations ha
                 ON ha.class_id = c.id
                 AND COALESCE(ha.is_deleted, 0) = 0
-
-            WHERE e.student_id = :student_id
-              AND COALESCE(e.is_active, 1) = 1
-              AND COALESCE(e.is_deleted, 0) = 0
-
-            ORDER BY c.name ASC
+            LEFT JOIN halls h
+                ON h.id = COALESCE(ha.hall_id, c.hall_id)
+                AND COALESCE(h.is_deleted, 0) = 0
+            WHERE COALESCE(c.is_active, 1) = 1
+              AND COALESCE(c.is_deleted, 0) = 0
         ";
 
-        $stmt = $pdo->prepare($sql);
+        $params = [];
 
-        $stmt->execute([
-            'student_id' => $studentId
-        ]);
-
-        $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($classes as &$class) {
-
-            $class['next_occurrence'] = null;
-
-            if (
-                !empty($class['day_name']) &&
-                !empty($class['start_time'])
-            ) {
-                $class['next_occurrence'] =
-                    $this->calculateNextOccurrence(
-                        (string) $class['day_name'],
-                        (string) $class['start_time']
-                    );
-            }
+        if ($hasInstituteId) {
+            $sql .= " AND c.institute_id = :institute_id";
+            $params['institute_id'] = $instituteId;
         }
 
-        unset($class);
+        $sql .= " ORDER BY c.name ASC";
 
-        /*
-         * Sort scheduled classes first,
-         * according to next occurrence.
-         */
-        usort(
-            $classes,
-            static function (array $a, array $b): int {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rawRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                $aTime = $a['next_occurrence'] ?? null;
-                $bTime = $b['next_occurrence'] ?? null;
+        $classes = [];
+        foreach ($rawRows as $row) {
+            $startTime = $this->formatTimeString((string) ($row['raw_start_time'] ?? ''));
+            $endTime = $this->formatTimeString((string) ($row['raw_end_time'] ?? ''));
+            $dayName = !empty($row['day_name']) ? trim((string) $row['day_name']) : null;
 
-                if ($aTime === null && $bTime === null) {
-                    return 0;
+            $hallInfo = null;
+            if (!empty($row['hall_name'])) {
+                $hallInfo = trim((string) $row['hall_name']);
+                if (!empty($row['hall_location'])) {
+                    $hallInfo .= ' (' . trim((string) $row['hall_location']) . ')';
                 }
-
-                if ($aTime === null) {
-                    return 1;
-                }
-
-                if ($bTime === null) {
-                    return -1;
-                }
-
-                return strcmp($aTime, $bTime);
             }
-        );
+
+            $feeText = null;
+            if (!empty($row['fee_amount']) && (float) $row['fee_amount'] > 0) {
+                $feeText = 'Rs. ' . number_format((float) $row['fee_amount'], 2);
+            }
+
+            $classes[] = [
+                'class_name' => (string) $row['class_name'],
+                'teacher' => !empty($row['teacher_name']) ? (string) $row['teacher_name'] : null,
+                'subject' => !empty($row['subject_name']) ? (string) $row['subject_name'] : null,
+                'grade' => !empty($row['grade_name']) ? (string) $row['grade_name'] : null,
+                'medium' => !empty($row['medium_name']) ? (string) $row['medium_name'] : null,
+                'day' => $dayName,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'hall' => $hallInfo,
+                'fee' => $feeText,
+            ];
+        }
 
         return [
             'ok' => true,
-            'student_id' => $studentId,
-            'classes' => $classes
+            'classes' => $classes,
         ];
     }
 
-    private function directMyAttendance(?string $date = null): array
+    /**
+     * Return approved public teacher names and their assigned public classes.
+     * Safe fields only: teacher name, classes.
+     * No NIC, no passwords, no bank info, no phone/email.
+     */
+    public function publicTeachers(int $instituteId, ?string $teacherName = null): array
     {
-        $studentId = $this->studentId();
+        $pdo = GetmoreDatabase::connection();
+        $hasInstituteId = $this->hasColumn($pdo, 'classes', 'institute_id');
 
-        /*
-         * Validate optional date.
-         */
-        if (
-            $date !== null &&
-            $date !== '' &&
-            !$this->isValidDate($date)
-        ) {
+        $sql = "
+            SELECT
+                lp.name AS teacher_name,
+                c.name AS class_name
+            FROM lecturer_profiles lp
+            INNER JOIN classes c
+                ON c.lecturer_profile_id = lp.id
+                AND COALESCE(c.is_active, 1) = 1
+                AND COALESCE(c.is_deleted, 0) = 0
+            WHERE COALESCE(lp.is_active, 1) = 1
+              AND COALESCE(lp.is_deleted, 0) = 0
+        ";
+
+        $params = [];
+
+        if ($hasInstituteId) {
+            $sql .= " AND c.institute_id = :institute_id";
+            $params['institute_id'] = $instituteId;
+        }
+
+        if ($teacherName !== null && trim($teacherName) !== '') {
+            $sql .= " AND LOWER(lp.name) LIKE :teacher_name";
+            $params['teacher_name'] = '%' . mb_strtolower(trim($teacherName)) . '%';
+        }
+
+        $sql .= " ORDER BY lp.name ASC, c.name ASC";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $teacherMap = [];
+        foreach ($rows as $r) {
+            $name = (string) $r['teacher_name'];
+            if (!isset($teacherMap[$name])) {
+                $teacherMap[$name] = [
+                    'teacher_name' => $name,
+                    'classes' => [],
+                ];
+            }
+            if (!in_array($r['class_name'], $teacherMap[$name]['classes'], true)) {
+                $teacherMap[$name]['classes'][] = (string) $r['class_name'];
+            }
+        }
+
+        return [
+            'ok' => true,
+            'teachers' => array_values($teacherMap),
+        ];
+    }
+
+    /**
+     * Return attendance records belonging ONLY to a verified student.
+     * Requires valid student ID resolved through server-side verification.
+     * Safe fields only: date, status, class name, time in, time out.
+     */
+    public function verifiedStudentAttendance(
+        int $studentId,
+        int $instituteId,
+        ?string $date = null
+    ): array {
+        if ($date !== null && $date !== '' && !$this->isValidDate($date)) {
             throw new InvalidArgumentException(
                 'Attendance date must use YYYY-MM-DD format.'
             );
@@ -172,383 +188,114 @@ final class GetmoreConnector
 
         $sql = "
             SELECT
-                ar.id AS attendance_id,
                 ar.date,
                 ar.status,
                 ar.time_in,
                 ar.time_out,
-
-                c.id AS class_id,
                 c.name AS class_name
-
             FROM attendance_records ar
-
             INNER JOIN enrollments e
                 ON e.id = ar.enrollment_id
-
             INNER JOIN classes c
                 ON c.id = e.class_id
-
             WHERE e.student_id = :student_id
               AND COALESCE(e.is_deleted, 0) = 0
         ";
 
         $params = [
-            'student_id' => $studentId
+            'student_id' => $studentId,
         ];
 
         if ($date !== null && $date !== '') {
             $sql .= " AND ar.date = :attendance_date";
-
             $params['attendance_date'] = $date;
         }
 
-        $sql .= "
-            ORDER BY
-                ar.date DESC,
-                ar.time_in DESC
-        ";
+        $sql .= " ORDER BY ar.date DESC, ar.time_in DESC LIMIT 30";
 
         $stmt = $pdo->prepare($sql);
-
         $stmt->execute($params);
+        $rawRecords = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $records = [];
+        foreach ($rawRecords as $rec) {
+            $timeIn = $this->formatTimeString((string) ($rec['time_in'] ?? ''));
+            $timeOut = $this->formatTimeString((string) ($rec['time_out'] ?? ''));
+
+            $records[] = [
+                'date' => (string) $rec['date'],
+                'status' => ucfirst((string) ($rec['status'] ?? 'Present')),
+                'class_name' => (string) $rec['class_name'],
+                'time_in' => $timeIn,
+                'time_out' => $timeOut,
+            ];
+        }
 
         return [
             'ok' => true,
-            'student_id' => $studentId,
             'date_filter' => $date,
-            'attendance' =>
-                $stmt->fetchAll(PDO::FETCH_ASSOC)
-        ];
-    }
-
-    private function directMyTeachers(): array
-    {
-        $studentId = $this->studentId();
-
-        $pdo = GetmoreDatabase::connection();
-
-        /*
-         * IMPORTANT:
-         * Only return approved teacher fields.
-         *
-         * Do NOT return:
-         * NIC
-         * password_hash
-         * bank details
-         * financial information
-         */
-        $sql = "
-            SELECT DISTINCT
-                lp.id AS teacher_id,
-                lp.name AS teacher_name,
-                c.id AS class_id,
-                c.name AS class_name
-
-            FROM enrollments e
-
-            INNER JOIN classes c
-                ON c.id = e.class_id
-
-            INNER JOIN lecturer_profiles lp
-                ON lp.id = c.lecturer_profile_id
-
-            WHERE e.student_id = :student_id
-              AND COALESCE(e.is_active, 1) = 1
-              AND COALESCE(e.is_deleted, 0) = 0
-
-            ORDER BY lp.name ASC
-        ";
-
-        $stmt = $pdo->prepare($sql);
-
-        $stmt->execute([
-            'student_id' => $studentId
-        ]);
-
-        return [
-            'ok' => true,
-            'student_id' => $studentId,
-            'teachers' =>
-                $stmt->fetchAll(PDO::FETCH_ASSOC)
+            'attendance' => $records,
         ];
     }
 
     /*
     |--------------------------------------------------------------------------
-    | DEVELOPMENT STUDENT
+    | HELPER METHODS
     |--------------------------------------------------------------------------
     */
 
-    private function studentId(): int
+    private function formatTimeString(string $timeStr): ?string
     {
-        if (!$this->isDevMode()) {
-            throw new RuntimeException(
-                'Direct student ID access is only allowed in development mode.'
-            );
-        }
-
-        $studentId = (int) Env::get(
-            'DEV_STUDENT_ID',
-            '0'
-        );
-
-        if ($studentId < 1) {
-            throw new RuntimeException(
-                'DEV_STUDENT_ID is not configured.'
-            );
-        }
-
-        return $studentId;
-    }
-
-    private function isDevMode(): bool
-    {
-        return filter_var(
-            (string) Env::get(
-                'DEV_MODE',
-                'false'
-            ),
-            FILTER_VALIDATE_BOOLEAN
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | NEXT CLASS CALCULATION
-    |--------------------------------------------------------------------------
-    */
-
-    private function calculateNextOccurrence(
-        string $dayName,
-        string $startTime
-    ): ?string {
-
-        $allowedDays = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday'
-        ];
-
-        $normalizedDay = ucfirst(
-            strtolower(trim($dayName))
-        );
-
-        if (
-            !in_array(
-                $normalizedDay,
-                $allowedDays,
-                true
-            )
-        ) {
+        $timeStr = trim($timeStr);
+        if ($timeStr === '' || str_starts_with($timeStr, '0000-00-00')) {
             return null;
         }
 
-        $timezoneName = (string) Env::get(
-            'APP_TIMEZONE',
-            'Asia/Colombo'
-        );
+        // If in "HH:MM:SS" or "HH:MM"
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $timeStr, $m)) {
+            $h = (int) $m[1];
+            $min = (int) $m[2];
+            $ampm = $h >= 12 ? 'PM' : 'AM';
+            $h12 = $h % 12;
+            if ($h12 === 0) $h12 = 12;
+            return sprintf('%d:%02d %s', $h12, $min, $ampm);
+        }
 
+        // If in "YYYY-MM-DD HH:MM:SS"
         try {
-
-            $timezone =
-                new DateTimeZone($timezoneName);
-
-            $now =
-                new DateTimeImmutable(
-                    'now',
-                    $timezone
-                );
-
-            /*
-             * Remove seconds if necessary.
-             */
-            $timeParts = explode(
-                ':',
-                $startTime
-            );
-
-            $hour =
-                isset($timeParts[0])
-                ? (int) $timeParts[0]
-                : 0;
-
-            $minute =
-                isset($timeParts[1])
-                ? (int) $timeParts[1]
-                : 0;
-
-            /*
-             * If the class is today and has
-             * not started yet, today is next.
-             */
-            if (
-                strcasecmp(
-                    $now->format('l'),
-                    $normalizedDay
-                ) === 0
-            ) {
-
-                $todayClass =
-                    $now->setTime(
-                        $hour,
-                        $minute,
-                        0
-                    );
-
-                if ($todayClass > $now) {
-                    return $todayClass->format(
-                        'Y-m-d H:i:s'
-                    );
-                }
-            }
-
-            /*
-             * Otherwise find next week's/day's
-             * occurrence.
-             */
-            $next =
-                new DateTimeImmutable(
-                    'next ' . $normalizedDay,
-                    $timezone
-                );
-
-            $next =
-                $next->setTime(
-                    $hour,
-                    $minute,
-                    0
-                );
-
-            return $next->format(
-                'Y-m-d H:i:s'
-            );
-
+            $dt = new DateTimeImmutable($timeStr);
+            return $dt->format('g:i A');
         } catch (Throwable) {
-            return null;
+            return $timeStr;
         }
     }
 
     private function isValidDate(string $date): bool
     {
-        $parsed =
-            DateTimeImmutable::createFromFormat(
-                'Y-m-d',
-                $date
-            );
-
-        return $parsed !== false &&
-            $parsed->format('Y-m-d') === $date;
+        $parsed = DateTimeImmutable::createFromFormat('Y-m-d', $date);
+        return $parsed !== false && $parsed->format('Y-m-d') === $date;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | PRODUCTION GETMORE API MODE
-    |--------------------------------------------------------------------------
-    */
-
-    private function get(
-        string $path,
-        array $query = []
-    ): array {
-
-        $baseUrl = rtrim(
-            (string) Env::get(
-                'GETMORE_BASE_URL',
-                ''
-            ),
-            '/'
-        );
-
-        if ($baseUrl === '') {
-            throw new RuntimeException(
-                'GETMORE_BASE_URL is not configured.'
-            );
+    private function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+        if (isset($cache[$key])) {
+            return $cache[$key];
         }
 
-        if (
-            $this->authToken === null ||
-            $this->authToken === ''
-        ) {
-            throw new RuntimeException(
-                'GETMORE authentication token is missing.'
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
             );
+            $stmt->execute([$table, $column]);
+            $exists = ((int) $stmt->fetchColumn()) > 0;
+            $cache[$key] = $exists;
+
+            return $exists;
+        } catch (Throwable) {
+            return false;
         }
-
-        $url = $baseUrl . $path;
-
-        if ($query !== []) {
-            $url .= '?' .
-                http_build_query($query);
-        }
-
-        $ch = curl_init($url);
-
-        if ($ch === false) {
-            throw new RuntimeException(
-                'Could not initialize GETMORE request.'
-            );
-        }
-
-        curl_setopt_array(
-            $ch,
-            [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPGET => true,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT => 15,
-
-                CURLOPT_HTTPHEADER => [
-                    'Accept: application/json',
-                    'Authorization: Bearer ' .
-                    $this->authToken
-                ],
-            ]
-        );
-
-        $response = curl_exec($ch);
-
-        $status =
-            (int) curl_getinfo(
-                $ch,
-                CURLINFO_HTTP_CODE
-            );
-
-        $curlError =
-            curl_error($ch);
-
-        curl_close($ch);
-
-        if ($response === false) {
-            throw new RuntimeException(
-                'GETMORE connection failed: ' .
-                $curlError
-            );
-        }
-
-        $decoded =
-            json_decode(
-                (string) $response,
-                true
-            );
-
-        if (!is_array($decoded)) {
-            throw new RuntimeException(
-                'GETMORE returned invalid JSON.'
-            );
-        }
-
-        if ($status < 200 || $status >= 300) {
-            throw new RuntimeException(
-                'GETMORE API returned HTTP ' .
-                $status
-            );
-        }
-
-        return $decoded;
     }
 }
