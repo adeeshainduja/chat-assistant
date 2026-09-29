@@ -3,31 +3,82 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 
-$assistant = [
-    'name' => 'GETMORE AI',
-    'welcome_message' => 'Hi! How can I help you with your classes today?',
-    'enabled' => 1,
-    'theme_primary_color' => '#00B957',
-    'theme_secondary_color' => '#F3F4F6',
-    'theme_text_color' => '#111827',
-    'theme_header_text_color' => '#FFFFFF',
-    'user_bubble_color' => '#ECFDF3',
-    'assistant_bubble_color' => '#EAEAEA',
-    'chat_background_color' => '#FFFFFF',
-    'starter_messages' => '["What classes do I have?","Show my attendance","Who are my teachers?","When is my next class?"]',
-    'header_subtitle' => 'AI Assistant',
-];
-
-try {
-    $repository = new AssistantRepository(Database::connection());
-    $assistant = $repository->getAssistant(1);
-} catch (Throwable $e) {
-    // Keep a safe fallback UI if configuration/database is temporarily unavailable.
+if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+    @session_start();
 }
 
 $base = ai_base_path();
-$enabled = !empty($assistant['enabled']);
+$isDev = Env::bool('DEV_MODE', false);
+$widgetKey = trim((string) ($_GET['assistant'] ?? ''));
 
+// Fallback in development mode for easy direct testing
+if ($widgetKey === '' && $isDev) {
+    $widgetKey = 'pk_achieve_72af8391';
+}
+
+$assistant = null;
+$errorMessage = null;
+
+if ($widgetKey === '') {
+    $errorMessage = 'This assistant is currently unavailable.';
+} else {
+    try {
+        $repository = new AssistantRepository(Database::connection());
+        $assistant = $repository->getByWidgetKey($widgetKey);
+
+        if (!$assistant) {
+            $errorMessage = 'This assistant is currently unavailable.';
+        } elseif (!(bool) ($assistant['enabled'] ?? 0) || (isset($assistant['institute_active']) && !(bool) $assistant['institute_active'])) {
+            $errorMessage = 'This assistant is currently unavailable.';
+        } else {
+            // Check allowed domains
+            $origin = $_SERVER['HTTP_ORIGIN'] ?? null;
+            $referer = $_SERVER['HTTP_REFERER'] ?? null;
+            if (!InstituteRepository::validateDomain($assistant['allowed_domains'] ?? null, $origin, $referer, $isDev)) {
+                $errorMessage = 'This domain is not authorized to use this assistant.';
+            }
+        }
+    } catch (Throwable $e) {
+        $errorMessage = 'This assistant is currently unavailable.';
+    }
+}
+
+if ($errorMessage !== null || !$assistant) {
+    ?>
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Assistant Unavailable</title>
+        <style>
+            *{box-sizing:border-box}
+            body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f9fafb;color:#374151;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;text-align:center}
+            .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:36px 28px;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,.05)}
+            .icon{width:48px;height:48px;border-radius:50%;background:#f3f4f6;display:inline-flex;align-items:center;justify-content:center;color:#9ca3af;margin-bottom:16px}
+            h2{font-size:18px;margin:0 0 8px;color:#111827}
+            p{font-size:14px;line-height:1.5;margin:0;color:#6b7280}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <h2>Assistant Unavailable</h2>
+            <p><?= htmlspecialchars($errorMessage) ?></p>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+$enabled = !empty($assistant['enabled']);
 $themePrimaryColor = (string) ($assistant['theme_primary_color'] ?? '#00B957');
 $themeSecondaryColor = (string) ($assistant['theme_secondary_color'] ?? '#F3F4F6');
 $themeTextColor = (string) ($assistant['theme_text_color'] ?? '#111827');
@@ -36,6 +87,7 @@ $userBubbleColor = (string) ($assistant['user_bubble_color'] ?? '#ECFDF3');
 $assistantBubbleColor = (string) ($assistant['assistant_bubble_color'] ?? '#EAEAEA');
 $chatBgColor = (string) ($assistant['chat_background_color'] ?? '#FFFFFF');
 $headerSubtitle = (string) ($assistant['header_subtitle'] ?? 'AI Assistant');
+$instituteName = (string) ($assistant['institute_name'] ?? '');
 
 $starterMessages = [];
 if (!empty($assistant['starter_messages'])) {
@@ -50,7 +102,7 @@ if (!empty($assistant['starter_messages'])) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars((string) $assistant['name']) ?></title>
+    <title><?= htmlspecialchars((string) $assistant['name']) ?><?= $instituteName !== '' ? ' - ' . htmlspecialchars($instituteName) : '' ?></title>
     <link rel="stylesheet" href="<?= htmlspecialchars($base) ?>/assets/chat.css">
     <style>
         :root {
@@ -69,6 +121,7 @@ if (!empty($assistant['starter_messages'])) {
 <div
     class="chat-shell"
     data-api-url="<?= htmlspecialchars($base) ?>/api/chat.php"
+    data-assistant-key="<?= htmlspecialchars($widgetKey) ?>"
     data-enabled="<?= $enabled ? '1' : '0' ?>"
     data-primary-color="<?= htmlspecialchars($themePrimaryColor) ?>"
     data-admin-primary="<?= htmlspecialchars($themePrimaryColor) ?>"
@@ -87,7 +140,7 @@ if (!empty($assistant['starter_messages'])) {
 
         <div class="header-info">
             <strong class="header-name"><?= htmlspecialchars((string) $assistant['name']) ?></strong>
-            <span class="header-subtitle"><?= htmlspecialchars($enabled ? $headerSubtitle : 'Currently unavailable') ?></span>
+            <span class="header-subtitle"><?= htmlspecialchars($headerSubtitle) ?></span>
         </div>
 
         <div class="header-menu-wrap">
@@ -224,9 +277,7 @@ if (!empty($assistant['starter_messages'])) {
         </div>
     </div>
 
-    <div id="auth-status" class="auth-status">
-        Connecting securely to GETMORE…
-    </div>
+    <div id="auth-status" class="auth-status ready" style="display:none;"></div>
 
     <main id="messages" class="messages">
         <div class="assistant-intro">
@@ -260,7 +311,7 @@ if (!empty($assistant['starter_messages'])) {
         <input
             id="chat-input"
             maxlength="2000"
-            placeholder="Ask about your classes…"
+            placeholder="Ask a question…"
             <?= $enabled ? '' : 'disabled' ?>
         >
         <button type="submit" id="chat-send-btn" aria-label="Send message" <?= $enabled ? '' : 'disabled' ?>>
@@ -273,12 +324,5 @@ if (!empty($assistant['starter_messages'])) {
 </div>
 
 <script src="<?= htmlspecialchars($base) ?>/assets/chat.js"></script>
-<?php if (Env::bool('DEV_MODE', false)): ?>
-<script>
-window.addEventListener('DOMContentLoaded', () => {
-    window.postMessage({ type: 'GETMORE_AI_AUTH', token: 'dev-token' }, window.location.origin);
-});
-</script>
-<?php endif; ?>
 </body>
 </html>

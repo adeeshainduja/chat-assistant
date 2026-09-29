@@ -22,9 +22,10 @@
     const userBubbleInput = document.getElementById('theme-user-bubble');
     const userBubbleSwatch = document.getElementById('user-bubble-preview');
 
-    if (!shell || !form || !input || !messages || !authStatus) return;
+    if (!shell || !form || !input || !messages) return;
 
     const apiUrl = shell.dataset.apiUrl;
+    const assistantKey = shell.dataset.assistantKey || '';
     const enabled = shell.dataset.enabled === '1';
 
     // Preserve Admin-defined defaults
@@ -37,7 +38,7 @@
         textColor: shell.dataset.adminText || '#111827',
     };
 
-    const THEME_STORAGE_KEY = 'getmore_ai_student_theme';
+    const THEME_STORAGE_KEY = `getmore_ai_theme_${assistantKey || 'default'}`;
     let currentTheme = { ...adminTheme };
 
     // Luminance and contrast helper
@@ -74,7 +75,6 @@
     }
 
     function updatePanelControls(primaryColor, backgroundColor, userBubbleColor) {
-        // Primary color preset buttons
         document.querySelectorAll('.color-preset-btn').forEach(btn => {
             const c = (btn.dataset.color || '').toLowerCase();
             if (c === (primaryColor || '').toLowerCase()) {
@@ -84,7 +84,6 @@
             }
         });
 
-        // Custom primary picker & swatch
         if (customPrimaryInput) {
             customPrimaryInput.value = primaryColor;
         }
@@ -92,7 +91,6 @@
             customPrimarySwatch.style.backgroundColor = primaryColor;
         }
 
-        // Background preset buttons
         document.querySelectorAll('.bg-preset-btn').forEach(btn => {
             const bg = (btn.dataset.bg || '').toLowerCase();
             if (bg === (backgroundColor || '').toLowerCase()) {
@@ -102,7 +100,6 @@
             }
         });
 
-        // User bubble picker & swatch
         if (userBubbleInput) {
             userBubbleInput.value = userBubbleColor;
         }
@@ -144,10 +141,12 @@
         updatePanelControls(primaryColor, backgroundColor, userBubbleColor);
 
         // Notify parent iframe container (e.g. widget button)
-        window.parent.postMessage(
-            { type: 'GETMORE_AI_THEME', primaryColor },
-            window.location.origin
-        );
+        try {
+            window.parent.postMessage(
+                { type: 'GETMORE_AI_THEME', primaryColor },
+                '*'
+            );
+        } catch (e) {}
 
         if (save) {
             try {
@@ -191,26 +190,17 @@
         applyTheme(adminTheme, false);
     }
 
-    // Initialize Theme on startup
     initTheme();
 
     // Dropdown and Appearance Panel controls
     function closeDropdown() {
-        if (headerDropdown) {
-            headerDropdown.hidden = true;
-        }
-        if (menuBtn) {
-            menuBtn.setAttribute('aria-expanded', 'false');
-        }
+        if (headerDropdown) headerDropdown.hidden = true;
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
     }
 
     function openDropdown() {
-        if (headerDropdown) {
-            headerDropdown.hidden = false;
-        }
-        if (menuBtn) {
-            menuBtn.setAttribute('aria-expanded', 'true');
-        }
+        if (headerDropdown) headerDropdown.hidden = false;
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'true');
     }
 
     function openThemePanel() {
@@ -251,24 +241,17 @@
     }
 
     if (themeCloseBtn) {
-        themeCloseBtn.addEventListener('click', () => {
-            closeThemePanel();
-        });
+        themeCloseBtn.addEventListener('click', closeThemePanel);
     }
 
     if (themeBackdrop) {
-        themeBackdrop.addEventListener('click', () => {
-            closeThemePanel();
-        });
+        themeBackdrop.addEventListener('click', closeThemePanel);
     }
 
     if (themeResetBtn) {
-        themeResetBtn.addEventListener('click', () => {
-            resetTheme();
-        });
+        themeResetBtn.addEventListener('click', resetTheme);
     }
 
-    // Color preset buttons click
     document.querySelectorAll('.color-preset-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const color = btn.dataset.color;
@@ -281,7 +264,6 @@
         });
     });
 
-    // Custom primary color picker
     if (customPrimaryInput) {
         customPrimaryInput.addEventListener('input', (e) => {
             const color = e.target.value;
@@ -294,7 +276,6 @@
         });
     }
 
-    // Background preset buttons click
     document.querySelectorAll('.bg-preset-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const bg = btn.dataset.bg;
@@ -305,7 +286,6 @@
         });
     });
 
-    // User bubble custom color picker
     if (userBubbleInput) {
         userBubbleInput.addEventListener('input', (e) => {
             const color = e.target.value;
@@ -316,7 +296,6 @@
         });
     }
 
-    // Global click listener to close dropdown when clicking outside
     document.addEventListener('click', (e) => {
         if (headerDropdown && !headerDropdown.hidden) {
             if (!headerDropdown.contains(e.target) && !menuBtn.contains(e.target)) {
@@ -325,7 +304,6 @@
         }
     });
 
-    // Global keyboard listener (Escape key)
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeDropdown();
@@ -333,7 +311,23 @@
         }
     });
 
-    let authToken = null;
+    // Notify parent window that chat is ready with active primary color
+    try {
+        window.parent.postMessage(
+            { type: 'GETMORE_AI_READY', primaryColor: currentTheme.primaryColor },
+            '*'
+        );
+    } catch (e) {}
+
+    // Header back button closes the widget if embedded in iframe
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            try {
+                window.parent.postMessage({ type: 'GETMORE_AI_CLOSE' }, '*');
+            } catch (e) {}
+        });
+    }
+
     let sending = false;
     const history = [];
 
@@ -352,52 +346,9 @@
         return wrap;
     };
 
-    const setAuthState = (text, state = '') => {
-        authStatus.textContent = text;
-        authStatus.className = `auth-status ${state}`.trim();
-    };
-
-    window.addEventListener('message', (event) => {
-        if (event.origin !== window.location.origin) return;
-
-        const data = event.data || {};
-
-        if (data.type === 'GETMORE_AI_AUTH' && typeof data.token === 'string') {
-            authToken = data.token;
-            setAuthState('Securely connected to your GETMORE student account.', 'ready');
-            if (enabled) input.focus();
-        }
-    });
-
-    // Notify parent window that chat is ready with active primary color
-    window.parent.postMessage(
-        { type: 'GETMORE_AI_READY', primaryColor: currentTheme.primaryColor },
-        window.location.origin
-    );
-
-    // Header back button closes the widget if embedded in iframe
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            window.parent.postMessage(
-                { type: 'GETMORE_AI_CLOSE' },
-                window.location.origin
-            );
-        });
-    }
-
-    // Centralized message sending function
     async function sendMessage(message) {
         message = (message || '').trim();
         if (!enabled || sending || !message) return;
-
-        if (!authToken) {
-            setAuthState('Waiting for GETMORE login authentication…', 'error');
-            window.parent.postMessage(
-                { type: 'GETMORE_AI_REFRESH_AUTH' },
-                window.location.origin
-            );
-            return;
-        }
 
         // Hide starter buttons after first user message
         if (starterContainer) {
@@ -416,31 +367,20 @@
         try {
             const response = await fetch(apiUrl, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`,
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({
+                    assistant_key: assistantKey,
                     message,
                     history: history.slice(-10),
                 }),
             });
 
             const data = await response.json().catch(() => ({}));
-
             typing.remove();
-
-            if (response.status === 401) {
-                setAuthState('Your secure AI session expired. Refreshing…', 'error');
-
-                window.parent.postMessage(
-                    { type: 'GETMORE_AI_REFRESH_AUTH' },
-                    window.location.origin
-                );
-
-                addMessage('assistant', 'Your secure session expired. Please send the message again in a moment.');
-                return;
-            }
 
             if (!response.ok) {
                 addMessage('assistant', data.error || 'I could not process that request.');
@@ -467,13 +407,11 @@
         }
     }
 
-    // Form submit sends typed message
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         sendMessage(input.value);
     });
 
-    // Suggested / starter question buttons
     document.querySelectorAll('.starter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const msg = btn.dataset.message || btn.textContent.trim();
@@ -483,4 +421,8 @@
             }
         });
     });
+
+    if (enabled && input) {
+        input.focus();
+    }
 })();

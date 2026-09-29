@@ -6,14 +6,14 @@
     const scriptUrl = new URL(script.src, window.location.href);
     const basePath = scriptUrl.pathname.replace(/\/widget\.js$/, '');
 
-    const authEndpoint = script.dataset.authEndpoint || '/ai-auth.php';
-    const chatUrl = script.dataset.chatUrl || `${basePath}/chat.php`;
+    const assistantKey = script.dataset.assistant || script.dataset.assistantKey || '';
+    const chatUrl = script.dataset.chatUrl || `${basePath}/chat.php?assistant=${encodeURIComponent(assistantKey)}`;
     const label = script.dataset.label;
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.setAttribute('aria-label', 'Open GETMORE AI assistant');
-    
+    button.setAttribute('aria-label', 'Open AI Assistant');
+
     if (label) {
         button.textContent = label;
         button.style.fontWeight = '700';
@@ -48,7 +48,7 @@
 
     const iframe = document.createElement('iframe');
     iframe.src = chatUrl;
-    iframe.title = 'GETMORE AI Assistant';
+    iframe.title = 'AI Assistant';
     iframe.setAttribute('allow', 'clipboard-write');
 
     Object.assign(iframe.style, {
@@ -60,6 +60,8 @@
         height: '620px',
         maxHeight: 'calc(100vh - 110px)',
         border: '0',
+        borderRadius: '16px',
+        boxShadow: '0 12px 35px rgba(0,0,0,0.18)',
         background: 'transparent',
         zIndex: '2147482999',
         display: 'none',
@@ -68,63 +70,15 @@
     document.body.appendChild(iframe);
     document.body.appendChild(button);
 
-    let currentToken = null;
-    let refreshTimer = null;
-
-    const sendTokenToFrame = () => {
-        if (!currentToken || !iframe.contentWindow) return;
-
-        iframe.contentWindow.postMessage(
-            {
-                type: 'GETMORE_AI_AUTH',
-                token: currentToken,
-            },
-            window.location.origin
-        );
-    };
-
-    const refreshAuth = async () => {
-        try {
-            const response = await fetch(authEndpoint, {
-                method: 'GET',
-                credentials: 'same-origin',
-                headers: {
-                    'Accept': 'application/json',
-                },
-            });
-
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok || !data.token) {
-                currentToken = null;
-                return;
-            }
-
-            currentToken = data.token;
-            sendTokenToFrame();
-        } catch (error) {
-            currentToken = null;
-        }
-    };
-
     window.addEventListener('message', (event) => {
-        if (event.origin !== window.location.origin) return;
-
         const data = event.data || {};
 
-        if (data.type === 'GETMORE_AI_READY') {
-            if (data.primaryColor) {
-                button.style.background = data.primaryColor;
-            }
-            refreshAuth();
+        if (data.type === 'GETMORE_AI_READY' && data.primaryColor) {
+            button.style.background = data.primaryColor;
         }
 
         if (data.type === 'GETMORE_AI_THEME' && data.primaryColor) {
             button.style.background = data.primaryColor;
-        }
-
-        if (data.type === 'GETMORE_AI_REFRESH_AUTH') {
-            refreshAuth();
         }
 
         if (data.type === 'GETMORE_AI_CLOSE') {
@@ -132,20 +86,12 @@
         }
     });
 
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', () => {
         const opening = iframe.style.display === 'none';
         iframe.style.display = opening ? 'block' : 'none';
-
-        if (opening) {
-            await refreshAuth();
-
-            if (!refreshTimer) {
-                refreshTimer = window.setInterval(refreshAuth, 4 * 60 * 1000);
-            }
-        }
     });
 
-    window.addEventListener('resize', () => {
+    const applyResponsive = () => {
         if (window.innerWidth < 520) {
             iframe.style.right = '10px';
             iframe.style.bottom = '78px';
@@ -157,5 +103,8 @@
             iframe.style.width = '390px';
             iframe.style.height = '620px';
         }
-    });
+    };
+
+    window.addEventListener('resize', applyResponsive);
+    applyResponsive();
 })();
