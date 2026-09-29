@@ -92,16 +92,42 @@
     });
 
     const applyResponsive = () => {
-        if (window.innerWidth < 520) {
-            iframe.style.right = '10px';
-            iframe.style.bottom = '78px';
-            iframe.style.width = 'calc(100vw - 20px)';
-            iframe.style.height = 'calc(100vh - 95px)';
+        if (window.innerWidth <= 480) {
+            button.style.right = '14px';
+            button.style.bottom = '14px';
+            button.style.width = '50px';
+            button.style.height = '50px';
+            iframe.style.right = '8px';
+            iframe.style.bottom = '70px';
+            iframe.style.width = 'calc(100vw - 16px)';
+            iframe.style.maxWidth = 'calc(100vw - 16px)';
+            iframe.style.height = 'calc(100vh - 84px)';
+            iframe.style.maxHeight = 'calc(100vh - 84px)';
+            iframe.style.borderRadius = '14px';
+        } else if (window.innerWidth <= 768) {
+            button.style.right = '18px';
+            button.style.bottom = '18px';
+            button.style.width = '54px';
+            button.style.height = '54px';
+            iframe.style.right = '14px';
+            iframe.style.bottom = '80px';
+            iframe.style.width = 'min(380px, calc(100vw - 28px))';
+            iframe.style.maxWidth = 'calc(100vw - 28px)';
+            iframe.style.height = 'min(600px, calc(100vh - 96px))';
+            iframe.style.maxHeight = 'calc(100vh - 96px)';
+            iframe.style.borderRadius = '16px';
         } else {
+            button.style.right = '22px';
+            button.style.bottom = '22px';
+            button.style.width = '56px';
+            button.style.height = '56px';
             iframe.style.right = '22px';
             iframe.style.bottom = '88px';
             iframe.style.width = '390px';
+            iframe.style.maxWidth = 'calc(100vw - 28px)';
             iframe.style.height = '620px';
+            iframe.style.maxHeight = 'calc(100vh - 110px)';
+            iframe.style.borderRadius = '16px';
         }
     };
 
