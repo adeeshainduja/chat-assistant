@@ -82,6 +82,18 @@ try {
         'public_notes' => mb_substr(trim((string) ($_POST['public_notes'] ?? '')), 0, 5000),
     ]);
 
+    // Save GETMORE API integration settings
+    $integrationRepo = new InstituteIntegrationRepository($pdo);
+    $integrationRepo->save($id, [
+        'api_base_url' => trim((string) ($_POST['getmore_api_base_url'] ?? '')),
+        'api_key' => trim((string) ($_POST['getmore_api_key'] ?? '')),
+        'classes_endpoint' => trim((string) ($_POST['getmore_classes_endpoint'] ?? '/api/v1/classes')),
+        'lecturers_endpoint' => trim((string) ($_POST['getmore_lecturers_endpoint'] ?? '/api/v1/lecturers')),
+        'extra_classes_endpoint' => trim((string) ($_POST['getmore_extra_classes_endpoint'] ?? '/api/v1/extra-classes')),
+        'attendance_endpoint' => trim((string) ($_POST['getmore_attendance_endpoint'] ?? '/api/v1/student/attendance/today')),
+        'is_active' => isset($_POST['getmore_api_enabled']) ? 1 : 0,
+    ]);
+
     header('Location: ' . $base . '/admin/institute-edit.php?id=' . $id . '&saved=1');
     exit;
 } catch (Throwable $e) {

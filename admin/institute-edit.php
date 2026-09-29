@@ -8,6 +8,7 @@ AdminAuth::requireLogin();
 $pdo = Database::connection();
 $instituteRepo = new InstituteRepository($pdo);
 $assistantRepo = new AssistantRepository($pdo);
+$integrationRepo = new InstituteIntegrationRepository($pdo);
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $institute = $instituteRepo->getById($id);
@@ -21,6 +22,17 @@ if (!$institute) {
 
 $assistant = $assistantRepo->getByInstituteId($id);
 $assistantId = (int) ($assistant['id'] ?? 1);
+
+$integration = $integrationRepo->getByInstituteId($id);
+$effectiveConfig = $integrationRepo->getEffectiveConfig($id);
+$hasCustomKey = ($integration !== null && !empty($integration['has_api_key']));
+$maskedKey = $hasCustomKey ? $integration['masked_api_key'] : null;
+$apiBaseUrl = (string) ($integration['api_base_url'] ?? $effectiveConfig['base_url'] ?? 'https://demo.getmore.lk');
+$classesEndpoint = (string) ($integration['classes_endpoint'] ?? $effectiveConfig['classes_endpoint'] ?? '/api/v1/classes');
+$lecturersEndpoint = (string) ($integration['lecturers_endpoint'] ?? $effectiveConfig['lecturers_endpoint'] ?? '/api/v1/lecturers');
+$extraClassesEndpoint = (string) ($integration['extra_classes_endpoint'] ?? $effectiveConfig['extra_classes_endpoint'] ?? '/api/v1/extra-classes');
+$attendanceEndpoint = (string) ($integration['attendance_endpoint'] ?? $effectiveConfig['attendance_endpoint'] ?? '/api/v1/student/attendance/today');
+$apiEnabled = $integration !== null ? !empty($integration['is_active']) : true;
 
 $saved = isset($_GET['saved']);
 $created = isset($_GET['created']);
@@ -241,6 +253,112 @@ $activeNav = 'institutes';
             </div>
         </div>
 
+        <!-- Section 5: GETMORE REST API Integration -->
+        <div class="card" id="api-integration-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                <h2 style="margin:0;">GETMORE REST API Integration</h2>
+                <div>
+                    <?php if ($hasCustomKey): ?>
+                        <span class="badge badge-active"><span class="badge-dot"></span> Configured ✓ (Institute Secret Active)</span>
+                    <?php else: ?>
+                        <span class="badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;"><span class="badge-dot"></span> Global Fallback (.env Active)</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <p class="muted" style="margin-top:-4px;margin-bottom:18px;">
+                Connect this institute's AI assistant directly to the GETMORE REST API for live classes, courses, lecturers, and attendance. Secrets are encrypted and kept strictly server-side.
+            </p>
+
+            <div class="row">
+                <div>
+                    <label class="field">API Base URL</label>
+                    <input type="url" name="getmore_api_base_url" id="api-base-url" value="<?= htmlspecialchars($apiBaseUrl) ?>" placeholder="https://demo.getmore.lk">
+                    <small class="muted" style="display:block;margin-top:4px;">Base URL for the GETMORE instance (e.g. https://demo.getmore.lk).</small>
+                </div>
+                <div>
+                    <label class="field">Secret API Token</label>
+                    <?php if ($hasCustomKey): ?>
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <span style="font-family:Consolas,monospace;background:#f1f5f9;padding:6px 12px;border-radius:8px;font-size:13px;color:#334155;border:1px solid #cbd5e1;">
+                                <?= htmlspecialchars($maskedKey ?? '') ?>
+                            </span>
+                            <span style="font-size:12px;font-weight:700;color:#059669;">Configured ✓</span>
+                        </div>
+                        <input type="password" name="getmore_api_key" id="api-secret-key" value="" placeholder="Update API Key (leave empty to keep current key)" autocomplete="new-password">
+                        <small class="muted" style="display:block;margin-top:4px;">Enter a new token only if you wish to change the currently stored secret key.</small>
+                    <?php else: ?>
+                        <input type="password" name="getmore_api_key" id="api-secret-key" value="" placeholder="Enter GETMORE secret API key (e.g. gme_...)" autocomplete="new-password">
+                        <small class="muted" style="display:block;margin-top:4px;">If left blank, the system falls back to GETMORE_API_KEY in .env.</small>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label class="field">Classes Endpoint</label>
+                    <input type="text" name="getmore_classes_endpoint" id="classes-endpoint" value="<?= htmlspecialchars($classesEndpoint) ?>" placeholder="/api/v1/classes">
+                </div>
+                <div>
+                    <label class="field">Lecturers Endpoint</label>
+                    <input type="text" name="getmore_lecturers_endpoint" id="lecturers-endpoint" value="<?= htmlspecialchars($lecturersEndpoint) ?>" placeholder="/api/v1/lecturers">
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label class="field">Extra Classes Endpoint</label>
+                    <input type="text" name="getmore_extra_classes_endpoint" id="extra-classes-endpoint" value="<?= htmlspecialchars($extraClassesEndpoint) ?>" placeholder="/api/v1/extra-classes">
+                </div>
+                <div>
+                    <label class="field">Attendance Endpoint</label>
+                    <input type="text" name="getmore_attendance_endpoint" id="attendance-endpoint" value="<?= htmlspecialchars($attendanceEndpoint) ?>" placeholder="/api/v1/student/attendance/today">
+                </div>
+            </div>
+
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9;">
+                <label style="display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px;cursor:pointer;">
+                    <input type="checkbox" name="getmore_api_enabled" value="1" <?= $apiEnabled ? 'checked' : '' ?> style="width:18px;height:18px;">
+                    Enable GETMORE REST API for this Institute
+                </label>
+                <small class="muted" style="display:block;margin-left:28px;margin-top:2px;">
+                    When enabled, the assistant queries the GETMORE REST API for live institute data.
+                </small>
+            </div>
+
+            <!-- API Test Actions -->
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">
+                <label class="field" style="margin-top:0;margin-bottom:6px;">Live Server-to-Server API Tests</label>
+                <p class="muted" style="margin-top:0;margin-bottom:12px;">
+                    Verify endpoint connectivity directly from this server. Tests use the secret key securely without leaking it to the browser.
+                </p>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="btn-outline btn-sm" onclick="runApiTest('test_connection')">
+                        Test Connection
+                    </button>
+                    <button type="button" class="btn-outline btn-sm" onclick="runApiTest('test_classes')">
+                        Test Classes
+                    </button>
+                    <button type="button" class="btn-outline btn-sm" onclick="runApiTest('test_lecturers')">
+                        Test Lecturers
+                    </button>
+                    <button type="button" class="btn-outline btn-sm" onclick="runApiTest('test_extra_classes')">
+                        Test Extra Classes
+                    </button>
+                    <button type="button" class="btn-outline btn-sm" onclick="runApiTest('test_attendance')">
+                        Test Attendance
+                    </button>
+                </div>
+
+                <div id="api-test-spinner" style="display:none;margin-top:12px;align-items:center;gap:8px;font-size:13px;color:#64748b;">
+                    <span style="display:inline-block;width:12px;height:12px;border:2px solid #00B957;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span>
+                    Testing GETMORE endpoint from server...
+                </div>
+
+                <div id="api-test-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;"></div>
+            </div>
+        </div>
+
         <div style="display:flex;gap:12px;margin-top:24px;">
             <button type="submit" class="btn-primary" style="padding:12px 28px;font-size:15px;">
                 Save Changes
@@ -273,6 +391,54 @@ function copyWidgetKey() {
         setTimeout(() => { textSpan.textContent = 'Copy Key'; }, 2000);
     }).catch(() => {
         alert('Could not copy automatically. Please copy the key manually.');
+    });
+}
+
+function runApiTest(action) {
+    const resultBox = document.getElementById('api-test-result');
+    const spinner = document.getElementById('api-test-spinner');
+
+    spinner.style.display = 'flex';
+    resultBox.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('csrf_token', '<?= htmlspecialchars(Csrf::token()) ?>');
+    formData.append('institute_id', '<?= (int) $id ?>');
+    formData.append('action', action);
+    formData.append('api_base_url', document.getElementById('api-base-url').value);
+    formData.append('api_key', document.getElementById('api-secret-key').value);
+    formData.append('classes_endpoint', document.getElementById('classes-endpoint').value);
+    formData.append('lecturers_endpoint', document.getElementById('lecturers-endpoint').value);
+    formData.append('extra_classes_endpoint', document.getElementById('extra-classes-endpoint').value);
+    formData.append('attendance_endpoint', document.getElementById('attendance-endpoint').value);
+
+    fetch('<?= htmlspecialchars($base) ?>/admin/api-test.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        spinner.style.display = 'none';
+        resultBox.style.display = 'block';
+        if (data.success) {
+            resultBox.style.background = '#ecfdf5';
+            resultBox.style.color = '#065f46';
+            resultBox.style.border = '1px solid #a7f3d0';
+            resultBox.innerHTML = '<strong>' + action.replace(/_/g, ' ').toUpperCase() + ':</strong> ' + data.message;
+        } else {
+            resultBox.style.background = '#fef2f2';
+            resultBox.style.color = '#991b1b';
+            resultBox.style.border = '1px solid #fecaca';
+            resultBox.innerHTML = '<strong>TEST FAILED:</strong> ' + (data.error || 'Unknown error occurred.');
+        }
+    })
+    .catch(err => {
+        spinner.style.display = 'none';
+        resultBox.style.display = 'block';
+        resultBox.style.background = '#fef2f2';
+        resultBox.style.color = '#991b1b';
+        resultBox.style.border = '1px solid #fecaca';
+        resultBox.innerHTML = '<strong>REQUEST FAILED:</strong> ' + err.message;
     });
 }
 </script>
