@@ -384,7 +384,8 @@ final class GetmoreConnector
                     'enrollment_status' => 'Open for enrollment',
                 ];
             }
-        } catch (Throwable) {}
+        } catch (Throwable) {
+        }
 
         // 2. Also fetch courses from classes endpoint
         try {
@@ -409,7 +410,8 @@ final class GetmoreConnector
                     'enrollment_status' => 'Open for enrollment',
                 ];
             }
-        } catch (Throwable) {}
+        } catch (Throwable) {
+        }
 
         if ($results === []) {
             return [
@@ -451,7 +453,8 @@ final class GetmoreConnector
 
         foreach ($rawLecturers as $lec) {
             $name = (string) ($lec['name'] ?? '');
-            if ($name === '') continue;
+            if ($name === '')
+                continue;
 
             if ($filter !== null && !str_contains(mb_strtolower($name, 'UTF-8'), $filter)) {
                 continue;
@@ -677,7 +680,8 @@ final class GetmoreConnector
                     'enrollment_status' => 'Open for enrollment',
                 ];
             }
-        } catch (Throwable) {}
+        } catch (Throwable) {
+        }
 
         // 2. Search classes table for classes flagged as new or upcoming
         $hasClassInst = $this->hasColumn($pdo, 'classes', 'institute_id');
@@ -750,7 +754,8 @@ final class GetmoreConnector
                             'enrollment_status' => 'Open for enrollment',
                         ];
                     }
-                } catch (Throwable) {}
+                } catch (Throwable) {
+                }
             }
         }
 
@@ -1096,13 +1101,64 @@ final class GetmoreConnector
         }
 
         $stopWords = [
-            'class', 'classes', 'course', 'courses', 'subject', 'subjects',
-            'do', 'you', 'have', 'teach', 'any', 'is', 'there', 'what', 'are',
-            'for', 'in', 'the', 'a', 'an', 'at', 'available', 'offered', 'offer',
-            'show', 'me', 'tell', 'about', 'find', 'lookup', 'can', 'i', 'take',
-            'your', 'our', 'my', 'some', 'please', 'we', 'want', 'like', 'need',
-            'know', 'looking', 'interested', 'would', 'could', 'help', 'with',
-            'of', 'on', 'to', 'from', 'who', 'which', 'where', 'when', 'how',
+            'class',
+            'classes',
+            'course',
+            'courses',
+            'subject',
+            'subjects',
+            'do',
+            'you',
+            'have',
+            'teach',
+            'any',
+            'is',
+            'there',
+            'what',
+            'are',
+            'for',
+            'in',
+            'the',
+            'a',
+            'an',
+            'at',
+            'available',
+            'offered',
+            'offer',
+            'show',
+            'me',
+            'tell',
+            'about',
+            'find',
+            'lookup',
+            'can',
+            'i',
+            'take',
+            'your',
+            'our',
+            'my',
+            'some',
+            'please',
+            'we',
+            'want',
+            'like',
+            'need',
+            'know',
+            'looking',
+            'interested',
+            'would',
+            'could',
+            'help',
+            'with',
+            'of',
+            'on',
+            'to',
+            'from',
+            'who',
+            'which',
+            'where',
+            'when',
+            'how',
         ];
 
         $filtered = array_values(array_filter($tokens, static function (string $w) use ($stopWords): bool {
@@ -1146,7 +1202,8 @@ final class GetmoreConnector
             $min = (int) $m[2];
             $ampm = $h >= 12 ? 'PM' : 'AM';
             $h12 = $h % 12;
-            if ($h12 === 0) $h12 = 12;
+            if ($h12 === 0)
+                $h12 = 12;
             return sprintf('%d:%02d %s', $h12, $min, $ampm);
         }
 
