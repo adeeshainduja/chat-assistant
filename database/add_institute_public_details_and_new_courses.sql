@@ -3,7 +3,7 @@
 -- ====================================================================
 
 -- 1. Add public information fields to institutes table in AI database
-ALTER TABLE institutes
+ALTER TABLE Ai_assistant_institutes
 ADD COLUMN IF NOT EXISTS short_description VARCHAR(500) NULL AFTER allowed_domains,
 ADD COLUMN IF NOT EXISTS about_institute TEXT NULL AFTER short_description,
 ADD COLUMN IF NOT EXISTS public_address TEXT NULL AFTER about_institute,
@@ -16,7 +16,7 @@ ADD COLUMN IF NOT EXISTS facilities_services TEXT NULL AFTER registration_info,
 ADD COLUMN IF NOT EXISTS public_notes TEXT NULL AFTER facilities_services;
 
 -- 2. Populate default public institute information for Achieve Institute (id = 1)
-UPDATE institutes
+UPDATE Ai_assistant_institutes
 SET short_description = COALESCE(short_description, 'Leading higher education and tuition institute for secondary and A/L students.'),
     about_institute = COALESCE(about_institute, 'Achieve Institute is dedicated to academic excellence with expert teaching, modern facilities, and comprehensive student support in science, mathematics, and commerce streams.'),
     public_address = COALESCE(public_address, 'No. 124, High Level Road, Nugegoda, Sri Lanka'),
@@ -29,7 +29,7 @@ SET short_description = COALESCE(short_description, 'Leading higher education an
 WHERE id = 1;
 
 -- 3. Ensure all 5 public feature permissions exist for assistant 1
-INSERT INTO assistant_permissions (assistant_id, permission_key, permission_name, enabled)
+INSERT INTO Ai_assistant_permissions (assistant_id, permission_key, permission_name, enabled)
 VALUES
     (1, 'institute_details', 'Institute Details', 1),
     (1, 'class_details', 'Classes / Courses', 1),
