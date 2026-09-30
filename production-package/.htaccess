@@ -9,10 +9,11 @@ DirectoryIndex index.php
     IndexIgnore *
 </IfModule>
 
-# Block access to hidden files and directories (such as .git, .env)
+# Block access to hidden files and internal directories
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule "(^|/)\.(?!well-known)" - [F]
+    RewriteRule ^(config|database|src|storage|scripts)(/|$) - [F,L]
 </IfModule>
 
 # Protect sensitive files from direct web access

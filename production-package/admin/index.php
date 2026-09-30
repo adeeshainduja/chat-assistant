@@ -45,9 +45,7 @@ $saved = isset($_GET['saved']);
 $base = ai_base_path();
 $activeNav = 'assistants';
 
-$currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$widgetUrl = $scheme . '://' . $currentHost . $base . '/widget.js';
+$widgetUrl = ai_app_url('/widget.js');
 $publicWidgetKey = (string) ($activeInstitute['public_widget_key'] ?? 'pk_achieve_72af8391');
 $embedCode = '<script' . "\n" .
     '    src="' . htmlspecialchars($widgetUrl) . '"' . "\n" .
