@@ -10,9 +10,7 @@ $instituteRepo = new InstituteRepository($pdo);
 $institutes = $instituteRepo->getAll();
 
 $base = ai_base_path();
-$currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$widgetScriptUrl = $scheme . '://' . $currentHost . $base . '/widget.js';
+$widgetScriptUrl = ai_app_url('/widget.js');
 
 $statusUpdated = isset($_GET['status_updated']);
 $deleted = isset($_GET['deleted']);
