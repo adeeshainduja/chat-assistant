@@ -244,7 +244,6 @@ html, body {
     font-size: 14px;
     line-height: 1.48;
     word-break: break-word;
-    white-space: pre-wrap;
 }
 
 .user-bubble {
@@ -252,6 +251,7 @@ html, body {
     color: var(--user-bubble-text-color, var(--text-color, #111827));
     border-radius: 18px 18px 4px 18px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    white-space: pre-wrap;
 }
 
 .assistant-bubble {
@@ -259,12 +259,141 @@ html, body {
     color: var(--text-color, #111827);
     border-radius: 18px 18px 18px 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    white-space: normal;
+}
+
+.assistant-bubble.typing {
+    white-space: pre-wrap;
 }
 
 .typing {
     opacity: 0.75;
     font-style: italic;
     font-size: 13px;
+}
+
+/* Assistant Message Rich Formatting & Lists */
+.assistant-msg-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    line-height: 1.5;
+}
+
+.assistant-paragraph {
+    margin: 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Normal Information Lists (Institute details, address, phone, facilities, attendance, etc.) */
+.assistant-list--normal,
+.assistant-list:not(.assistant-list--teacher):not(.assistant-list--class):not(.assistant-list-teacher):not(.assistant-list-class) {
+    margin: 6px 0;
+    padding-left: 20px !important;
+    list-style-type: disc !important;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.assistant-list--normal > li,
+.assistant-list:not(.assistant-list--teacher):not(.assistant-list--class):not(.assistant-list-teacher):not(.assistant-list-class) > li {
+    display: list-item !important;
+    list-style-type: disc !important;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Teacher & Class lists (Graduation hat icon ONLY) */
+.assistant-list--teacher,
+.assistant-list--class,
+.assistant-list-teacher,
+.assistant-list-class {
+    margin: 6px 0;
+    padding-left: 0 !important;
+    list-style: none !important;
+    list-style-type: none !important;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.assistant-list--teacher > li,
+.assistant-list--class > li,
+.assistant-list-teacher > li,
+.assistant-list-class > li {
+    list-style: none !important;
+    list-style-type: none !important;
+    display: flex !important;
+    align-items: flex-start;
+    gap: 9px;
+    line-height: 1.48;
+}
+
+.assistant-list--teacher > li::marker,
+.assistant-list--class > li::marker,
+.assistant-list-teacher > li::marker,
+.assistant-list-class > li::marker {
+    content: none !important;
+}
+
+.assistant-list--teacher > li::before,
+.assistant-list--class > li::before,
+.assistant-list-teacher > li::before,
+.assistant-list-class > li::before {
+    content: none !important;
+    display: none !important;
+}
+
+.assistant-item-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-top: 1.5px;
+    color: var(--primary-color, #00B957);
+}
+
+.assistant-item-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    display: block;
+}
+
+.assistant-list--teacher .assistant-item-icon,
+.assistant-list--class .assistant-item-icon,
+.assistant-list-teacher .assistant-item-icon,
+.assistant-list-class .assistant-item-icon {
+    color: var(--primary-color, #00B957);
+}
+
+.assistant-item-text {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.assistant-item-text strong,
+.assistant-msg-content strong {
+    font-weight: 600;
+    color: inherit;
+}
+
+.assistant-msg-content code {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+[data-dark-mode="true"] .assistant-msg-content code {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 /* Bottom Composer */
