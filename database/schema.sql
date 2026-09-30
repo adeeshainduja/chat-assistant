@@ -1,4 +1,4 @@
-CREATE TABLE Ai_assistant_institutes (
+CREATE TABLE ai_assistant_institutes (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     public_widget_key VARCHAR(100) NOT NULL UNIQUE,
@@ -19,7 +19,7 @@ CREATE TABLE Ai_assistant_institutes (
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE Ai_assistants (
+CREATE TABLE ai_assistants (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     institute_id INT UNSIGNED NULL,
     name VARCHAR(255) NOT NULL,
@@ -40,11 +40,11 @@ CREATE TABLE Ai_assistants (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     CONSTRAINT fk_assistant_institute
-        FOREIGN KEY (institute_id) REFERENCES Ai_assistant_institutes(id)
+        FOREIGN KEY (institute_id) REFERENCES ai_assistant_institutes(id)
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE Ai_assistant_permissions (
+CREATE TABLE ai_assistant_permissions (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     assistant_id INT UNSIGNED NOT NULL,
     permission_key VARCHAR(100) NOT NULL,
@@ -53,11 +53,11 @@ CREATE TABLE Ai_assistant_permissions (
     PRIMARY KEY (id),
     UNIQUE KEY uq_assistant_permission (assistant_id, permission_key),
     CONSTRAINT fk_ai_permission_assistant
-        FOREIGN KEY (assistant_id) REFERENCES Ai_assistants(id)
+        FOREIGN KEY (assistant_id) REFERENCES ai_assistants(id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO Ai_assistant_institutes
+INSERT INTO ai_assistant_institutes
 (id, name, public_widget_key, is_active, allowed_domains, short_description, about_institute, public_address, public_phone, public_email, website, opening_hours, registration_info, facilities_services, public_notes)
 VALUES
 (
@@ -78,7 +78,7 @@ VALUES
     NULL
 );
 
-INSERT INTO Ai_assistants
+INSERT INTO ai_assistants
 (id, institute_id, name, description, purpose, welcome_message, enabled, theme_primary_color, theme_secondary_color, theme_text_color, theme_header_text_color, user_bubble_color, assistant_bubble_color, chat_background_color, starter_messages, header_subtitle)
 VALUES
 (
@@ -100,7 +100,7 @@ VALUES
     'AI Assistant'
 );
 
-INSERT INTO Ai_assistant_permissions
+INSERT INTO ai_assistant_permissions
 (assistant_id, permission_key, permission_name, enabled)
 VALUES
 (1, 'institute_details', 'Institute Details', 1),

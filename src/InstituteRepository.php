@@ -9,7 +9,7 @@ final class InstituteRepository
 
     public function getById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM Ai_assistant_institutes WHERE id = ? LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT * FROM ai_assistant_institutes WHERE id = ? LIMIT 1');
         $stmt->execute([$id]);
         $row = $stmt->fetch();
 
@@ -35,7 +35,7 @@ final class InstituteRepository
             return null;
         }
 
-        $stmt = $this->pdo->prepare('SELECT * FROM Ai_assistant_institutes WHERE public_widget_key = ? LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT * FROM ai_assistant_institutes WHERE public_widget_key = ? LIMIT 1');
         $stmt->execute([$widgetKey]);
         $row = $stmt->fetch();
 
@@ -55,7 +55,7 @@ final class InstituteRepository
 
     public function getAll(): array
     {
-        $stmt = $this->pdo->query('SELECT * FROM Ai_assistant_institutes ORDER BY id ASC');
+        $stmt = $this->pdo->query('SELECT * FROM ai_assistant_institutes ORDER BY id ASC');
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($rows as &$row) {
@@ -87,7 +87,7 @@ final class InstituteRepository
         $facilities = trim((string) ($data['facilities'] ?? $data['facilities_services'] ?? '')) ?: null;
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO Ai_assistant_institutes (
+            'INSERT INTO ai_assistant_institutes (
                 name, public_widget_key, is_active, allowed_domains,
                 short_description, about, about_institute, public_address,
                 public_phone, public_email, website, opening_hours,
@@ -178,21 +178,21 @@ final class InstituteRepository
         }
 
         $params[] = $id;
-        $sql = 'UPDATE Ai_assistant_institutes SET ' . implode(', ', $fields) . ', updated_at = NOW() WHERE id = ?';
+        $sql = 'UPDATE ai_assistant_institutes SET ' . implode(', ', $fields) . ', updated_at = NOW() WHERE id = ?';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
     }
 
     public function setActive(int $id, bool $active): void
     {
-        $stmt = $this->pdo->prepare('UPDATE Ai_assistant_institutes SET is_active = ?, updated_at = NOW() WHERE id = ?');
+        $stmt = $this->pdo->prepare('UPDATE ai_assistant_institutes SET is_active = ?, updated_at = NOW() WHERE id = ?');
         $stmt->execute([$active ? 1 : 0, $id]);
     }
 
     public function regenerateWidgetKey(int $id): string
     {
         $newKey = self::generateWidgetKey();
-        $stmt = $this->pdo->prepare('UPDATE Ai_assistant_institutes SET public_widget_key = ?, updated_at = NOW() WHERE id = ?');
+        $stmt = $this->pdo->prepare('UPDATE ai_assistant_institutes SET public_widget_key = ?, updated_at = NOW() WHERE id = ?');
         $stmt->execute([$newKey, $id]);
 
         return $newKey;
@@ -270,8 +270,17 @@ final class InstituteRepository
             $testHost = parse_url($referer, PHP_URL_HOST);
         }
 
+        // The application's own host (e.g. ai.getmore.lk) is always permitted for internal iframe/API calls
+        $serverHost = $_SERVER['HTTP_HOST'] ?? '';
+        if ($serverHost !== '') {
+            $serverHostName = strtolower(preg_replace('/:\d+$/', '', trim($serverHost)));
+            if ($testHost !== null && strtolower((string) $testHost) === $serverHostName) {
+                return true;
+            }
+        }
+
         if ($isDev) {
-            if ($testHost === null || in_array(strtolower($testHost), ['localhost', '127.0.0.1', '::1'], true)) {
+            if ($testHost === null || in_array(strtolower((string) $testHost), ['localhost', '127.0.0.1', '::1'], true)) {
                 return true;
             }
         }
@@ -281,11 +290,12 @@ final class InstituteRepository
             return true;
         }
 
+        // Direct browser address bar visits to public chat (no Origin or Referer)
         if ($testHost === null || $testHost === '') {
-            return $isDev;
+            return true;
         }
 
-        $testHost = strtolower($testHost);
+        $testHost = strtolower((string) $testHost);
         $domains = preg_split('/[\s,]+/', $allowedDomains, -1, PREG_SPLIT_NO_EMPTY);
         if (!is_array($domains)) {
             return true;

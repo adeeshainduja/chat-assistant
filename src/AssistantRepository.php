@@ -16,8 +16,8 @@ final class AssistantRepository
                     i.public_widget_key,
                     i.is_active AS institute_active,
                     i.allowed_domains
-             FROM Ai_assistants a
-             LEFT JOIN Ai_assistant_institutes i ON i.id = a.institute_id
+             FROM ai_assistants a
+             LEFT JOIN ai_assistant_institutes i ON i.id = a.institute_id
              WHERE a.id = ?
              LIMIT 1'
         );
@@ -46,8 +46,8 @@ final class AssistantRepository
                     i.public_widget_key,
                     i.is_active AS institute_active,
                     i.allowed_domains
-             FROM Ai_assistants a
-             INNER JOIN Ai_assistant_institutes i ON i.id = a.institute_id
+             FROM ai_assistants a
+             INNER JOIN ai_assistant_institutes i ON i.id = a.institute_id
              WHERE i.public_widget_key = ?
              LIMIT 1'
         );
@@ -67,8 +67,8 @@ final class AssistantRepository
                     i.public_widget_key,
                     i.is_active AS institute_active,
                     i.allowed_domains
-             FROM Ai_assistants a
-             INNER JOIN Ai_assistant_institutes i ON i.id = a.institute_id
+             FROM ai_assistants a
+             INNER JOIN ai_assistant_institutes i ON i.id = a.institute_id
              WHERE a.institute_id = ?
              LIMIT 1'
         );
@@ -81,7 +81,7 @@ final class AssistantRepository
         }
 
         // If no assistant exists yet for this institute, create a default one
-        $instStmt = $this->pdo->prepare('SELECT id, name FROM Ai_assistant_institutes WHERE id = ? LIMIT 1');
+        $instStmt = $this->pdo->prepare('SELECT id, name FROM ai_assistant_institutes WHERE id = ? LIMIT 1');
         $instStmt->execute([$instituteId]);
         $inst = $instStmt->fetch();
         if (!$inst) {
@@ -95,7 +95,7 @@ final class AssistantRepository
     public function createDefaultAssistant(int $instituteId, string $assistantName = 'AI Assistant'): int
     {
         $stmt = $this->pdo->prepare(
-            'INSERT INTO Ai_assistants (
+            'INSERT INTO ai_assistants (
                 institute_id, name, header_subtitle, welcome_message,
                 description, purpose, enabled, theme_primary_color
              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -122,7 +122,7 @@ final class AssistantRepository
         ];
 
         $permStmt = $this->pdo->prepare(
-            'INSERT INTO Ai_assistant_permissions (assistant_id, permission_key, permission_name, enabled)
+            'INSERT INTO ai_assistant_permissions (assistant_id, permission_key, permission_name, enabled)
              VALUES (?, ?, ?, 1)
              ON DUPLICATE KEY UPDATE enabled = 1'
         );
@@ -138,7 +138,7 @@ final class AssistantRepository
     {
         $stmt = $this->pdo->prepare(
             'SELECT permission_key, permission_name, enabled
-             FROM Ai_assistant_permissions
+             FROM ai_assistant_permissions
              WHERE assistant_id = ?
              ORDER BY id'
         );
@@ -187,7 +187,7 @@ final class AssistantRepository
 
             // 2. Update Assistant
             $stmt = $this->pdo->prepare(
-                'UPDATE Ai_assistants
+                'UPDATE ai_assistants
                  SET name = ?,
                      description = ?,
                      purpose = ?,
@@ -227,14 +227,14 @@ final class AssistantRepository
 
             // 3. Update Permissions
             $disable = $this->pdo->prepare(
-                'UPDATE Ai_assistant_permissions
+                'UPDATE ai_assistant_permissions
                  SET enabled = 0
                  WHERE assistant_id = ?'
             );
             $disable->execute([$assistantId]);
 
             $enable = $this->pdo->prepare(
-                'INSERT INTO Ai_assistant_permissions (assistant_id, permission_key, permission_name, enabled)
+                'INSERT INTO ai_assistant_permissions (assistant_id, permission_key, permission_name, enabled)
                  VALUES (?, ?, ?, 1)
                  ON DUPLICATE KEY UPDATE enabled = 1'
             );

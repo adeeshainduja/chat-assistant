@@ -285,8 +285,11 @@ final class AttendanceVerification
 
         $_SESSION['verification_failures']['count']++;
 
-        if ($_SESSION['verification_failures']['count'] >= self::MAX_FAILED_ATTEMPTS) {
-            $_SESSION['verification_failures']['blocked_until'] = time() + self::BLOCK_DURATION_SECONDS;
+        $maxAttempts = (int) (Env::get('ATTENDANCE_MAX_ATTEMPTS', '5') ?: self::MAX_FAILED_ATTEMPTS);
+        $blockSeconds = (int) (Env::get('ATTENDANCE_BLOCK_SECONDS', '600') ?: self::BLOCK_DURATION_SECONDS);
+
+        if ($_SESSION['verification_failures']['count'] >= $maxAttempts) {
+            $_SESSION['verification_failures']['blocked_until'] = time() + $blockSeconds;
         }
     }
 

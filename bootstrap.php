@@ -30,7 +30,11 @@ require_once APP_ROOT . '/src/AiService.php';
 
 function ai_base_path(): string
 {
-    return rtrim(Env::get('APP_BASE_PATH', '/ai-assistant') ?: '/ai-assistant', '/');
+    $base = Env::get('APP_BASE_PATH', '/');
+    if ($base === '/' || $base === '') {
+        return '';
+    }
+    return rtrim($base, '/');
 }
 
 function ai_json(array $payload, int $status = 200): never

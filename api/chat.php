@@ -13,7 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // IP-based rate limiting for public endpoints
 $clientIp = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-if (!RateLimiter::allow('public_ip:' . $clientIp, 45, 60)) {
+$chatRateLimit = (int) (Env::get('CHAT_RATE_LIMIT', '20') ?: 20);
+$chatRateWindow = (int) (Env::get('CHAT_RATE_WINDOW', '60') ?: 60);
+if (!RateLimiter::allow('public_ip:' . $clientIp, $chatRateLimit, $chatRateWindow)) {
     ai_json(['error' => 'Too many messages. Please wait a moment and try again.'], 429);
 }
 
@@ -89,6 +91,7 @@ try {
         'reply' => $reply,
     ]);
 } catch (Throwable $e) {
+    error_log('AI Assistant API Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     $debug = Env::bool('APP_DEBUG', false);
     $msg = $e->getMessage();
 

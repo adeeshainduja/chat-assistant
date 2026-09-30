@@ -1,0 +1,48 @@
+# ==============================================================================
+# DEPLOY_EXCLUDE.txt
+# Files and directories to EXCLUDE when uploading to cPanel:
+# Domain: https://ai.getmore.lk
+# ==============================================================================
+
+# Version Control
+.git/
+.gitignore
+.gitattributes
+
+# Environment & Local Secrets (Create .env manually on server from .env.production.example)
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor Files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Runtime Cache, Logs, and Sessions
+*.log
+error_log
+storage/ratelimit/*.json
+
+# Scripts & Local Test Files (Development only)
+scripts/admin_cookie.txt
+scripts/test_api_endpoints.php
+scripts/test_api_test_endpoint.php
+scripts/test_chat_functional.php
+scripts/test_extended_flows.php
+scripts/test_flows.php
+scripts/test_rest_api_integration.php
+scripts/generate_admin_hash.php
+scripts/check.php
+scripts/run_migration.php
+demo.html
+
+# Local Documentation & Development Notes
+README.md
+DEPLOY_EXCLUDE.txt
+
+# Deployment Package Directory Itself
+production-package/

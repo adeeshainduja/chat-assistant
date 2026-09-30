@@ -11,11 +11,14 @@ final class AdminAuth
 
         session_name('GETMOREAIADMIN');
 
+        $basePath = function_exists('ai_base_path') ? ai_base_path() : '';
+        $cookiePath = ($basePath !== '' ? $basePath : '') . '/admin';
+
         session_set_cookie_params([
             'httponly' => true,
             'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
             'samesite' => 'Lax',
-            'path' => rtrim(Env::get('APP_BASE_PATH', '/ai-assistant'), '/') . '/admin',
+            'path' => $cookiePath !== '' ? $cookiePath : '/admin',
         ]);
 
         session_start();
@@ -53,7 +56,7 @@ final class AdminAuth
     public static function requireLogin(): void
     {
         if (!self::check()) {
-            $base = rtrim(Env::get('APP_BASE_PATH', '/ai-assistant'), '/');
+            $base = function_exists('ai_base_path') ? ai_base_path() : '';
             header('Location: ' . $base . '/admin/login.php');
             exit;
         }

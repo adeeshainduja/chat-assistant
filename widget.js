@@ -4,10 +4,12 @@
     if (!script) return;
 
     const scriptUrl = new URL(script.src, window.location.href);
+    const origin = scriptUrl.origin;
     const basePath = scriptUrl.pathname.replace(/\/widget\.js$/, '');
+    const baseUrl = `${origin}${basePath}`;
 
     const assistantKey = script.dataset.assistant || script.dataset.assistantKey || '';
-    const chatUrl = script.dataset.chatUrl || `${basePath}/chat.php?assistant=${encodeURIComponent(assistantKey)}`;
+    const chatUrl = script.dataset.chatUrl || `${baseUrl}/chat.php?assistant=${encodeURIComponent(assistantKey)}`;
     const label = script.dataset.label;
 
     const button = document.createElement('button');

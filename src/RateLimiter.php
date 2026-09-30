@@ -12,21 +12,36 @@ final class RateLimiter
         $dir = APP_ROOT . '/storage/ratelimit';
 
         if (!is_dir($dir)) {
-            @mkdir($dir, 0770, true);
+            @mkdir($dir, 0755, true);
         }
 
         /*
          * Occasionally clean old rate-limit files.
-         *
          * 1 in every 100 requests will run cleanup.
          */
         if (random_int(1, 100) === 1) {
             self::cleanup($dir);
         }
 
-        $file = $dir . '/' . hash('sha256', $key) . '.json';
-
         $now = time();
+        $fileKey = hash('sha256', $key);
+        $file = $dir . '/' . $fileKey . '.json';
+
+        // Session fallback tracking to ensure security is never silently disabled if storage is unwritable
+        $sessionActive = (session_status() === PHP_SESSION_ACTIVE);
+        $sessKey = '_rate_limit_' . $fileKey;
+        if ($sessionActive) {
+            $sessState = $_SESSION[$sessKey] ?? null;
+            if (is_array($sessState)) {
+                if (($now - (int) ($sessState['window_start'] ?? 0)) >= $windowSeconds) {
+                    $_SESSION[$sessKey] = ['window_start' => $now, 'count' => 0];
+                } elseif ((int) ($sessState['count'] ?? 0) >= $maxRequests) {
+                    return false;
+                }
+            } else {
+                $_SESSION[$sessKey] = ['window_start' => $now, 'count' => 0];
+            }
+        }
 
         $state = [
             'window_start' => $now,
@@ -34,28 +49,19 @@ final class RateLimiter
         ];
 
         if (is_file($file)) {
-
-            $existing = json_decode(
-                (string) file_get_contents($file),
-                true
-            );
-
-            if (is_array($existing)) {
-                $state = array_merge(
-                    $state,
-                    $existing
-                );
+            $content = @file_get_contents($file);
+            if ($content !== false) {
+                $existing = json_decode($content, true);
+                if (is_array($existing)) {
+                    $state = array_merge($state, $existing);
+                }
             }
         }
 
         /*
          * Reset rate-limit window.
          */
-        if (
-            ($now - (int) $state['window_start'])
-            >= $windowSeconds
-        ) {
-
+        if (($now - (int) $state['window_start']) >= $windowSeconds) {
             $state = [
                 'window_start' => $now,
                 'count' => 0,
@@ -65,10 +71,7 @@ final class RateLimiter
         /*
          * Too many requests.
          */
-        if (
-            (int) $state['count']
-            >= $maxRequests
-        ) {
+        if ((int) $state['count'] >= $maxRequests) {
             return false;
         }
 
@@ -77,11 +80,20 @@ final class RateLimiter
          */
         $state['count']++;
 
-        @file_put_contents(
+        if ($sessionActive) {
+            $_SESSION[$sessKey]['count'] = (int) ($_SESSION[$sessKey]['count'] ?? 0) + 1;
+        }
+
+        $written = @file_put_contents(
             $file,
             json_encode($state),
             LOCK_EX
         );
+
+        if ($written === false) {
+            // Storage unwritable: log warning; session fallback above ensures rate limit still protects the endpoint
+            error_log('RateLimiter warning: unable to write to ' . $dir . '. Recommended cPanel permissions: 755 or 775.');
+        }
 
         return true;
     }

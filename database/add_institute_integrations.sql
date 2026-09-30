@@ -2,7 +2,7 @@
 -- GETMORE AI Assistant - Institute Integrations Table
 -- ==================================================
 
-CREATE TABLE IF NOT EXISTS Ai_institute_integrations (
+CREATE TABLE IF NOT EXISTS ai_institute_integrations (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     institute_id INT UNSIGNED NOT NULL,
     provider VARCHAR(50) NOT NULL DEFAULT 'getmore',
@@ -16,5 +16,5 @@ CREATE TABLE IF NOT EXISTS Ai_institute_integrations (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_institute_provider (institute_id, provider),
-    CONSTRAINT fk_integration_institute FOREIGN KEY (institute_id) REFERENCES Ai_assistant_institutes(id) ON DELETE CASCADE
+    CONSTRAINT fk_integration_institute FOREIGN KEY (institute_id) REFERENCES ai_assistant_institutes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
