@@ -14,9 +14,12 @@ final class AdminAuth
         $basePath = function_exists('ai_base_path') ? ai_base_path() : '';
         $cookiePath = ($basePath !== '' ? $basePath : '') . '/admin';
 
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+                   (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
         session_set_cookie_params([
             'httponly' => true,
-            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'secure' => $isHttps,
             'samesite' => 'Lax',
             'path' => $cookiePath !== '' ? $cookiePath : '/admin',
         ]);
