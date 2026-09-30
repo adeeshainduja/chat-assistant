@@ -279,6 +279,14 @@ final class InstituteRepository
             }
         }
 
+        $appUrl = (string) Env::get('APP_URL', '');
+        if ($appUrl !== '') {
+            $appHost = parse_url($appUrl, PHP_URL_HOST);
+            if ($appHost && $testHost !== null && strtolower((string) $testHost) === strtolower($appHost)) {
+                return true;
+            }
+        }
+
         if ($isDev) {
             if ($testHost === null || in_array(strtolower((string) $testHost), ['localhost', '127.0.0.1', '::1'], true)) {
                 return true;
