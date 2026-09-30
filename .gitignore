@@ -1,1 +1,8 @@
 .env
+.env.production
+.env.*.local
+storage/ratelimit/*
+!storage/ratelimit/.gitkeep
+*.log
+error_log
+scripts/admin_cookie.txt
