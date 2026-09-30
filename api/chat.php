@@ -74,9 +74,17 @@ try {
         ai_json(['error' => 'This domain is not authorized to use this assistant.'], 403);
     }
 
-    $rawLang = strtolower(trim((string) ($body['language'] ?? 'en')));
-    $allowedLanguages = ['en', 'si', 'ta'];
-    $language = in_array($rawLang, $allowedLanguages, true) ? $rawLang : 'en';
+    $allowedLanguages = ['en', 'si', 'ta', 'auto'];
+    $rawPreferred = strtolower(trim((string) ($body['preferred_language'] ?? 'en')));
+    $preferredLanguage = in_array($rawPreferred, ['en', 'si', 'ta'], true) ? $rawPreferred : 'en';
+
+    $rawDetected = strtolower(trim((string) ($body['detected_language'] ?? '')));
+    $clientDetected = in_array($rawDetected, $allowedLanguages, true) ? $rawDetected : null;
+
+    $rawResponse = strtolower(trim((string) ($body['response_language'] ?? $body['language'] ?? '')));
+    $clientResponse = in_array($rawResponse, $allowedLanguages, true) ? $rawResponse : null;
+
+    $resolvedLanguage = AiService::resolveLanguage($message, $clientResponse, $clientDetected, $preferredLanguage);
 
     $connector = new GetmoreConnector();
     $service = new AiService(
@@ -85,10 +93,43 @@ try {
         $repository
     );
 
-    $reply = $service->reply($message, $history, $assistantKey, (int) $assistant['id'], $language);
+    $reply = $service->reply($message, $history, $assistantKey, (int) $assistant['id'], $resolvedLanguage, $preferredLanguage);
+
+    $finalLanguage = $resolvedLanguage;
+    if ($finalLanguage === 'auto') {
+        if (preg_match('/[\x{0D80}-\x{0DFF}]/u', $reply)) {
+            $finalLanguage = 'si';
+        } elseif (preg_match('/[\x{0B80}-\x{0BFF}]/u', $reply)) {
+            $finalLanguage = 'ta';
+        } else {
+            $finalLanguage = 'en';
+        }
+    }
+
+    $toolsUsed = $service->getExecutedTools();
+    $listType = 'default';
+    if (in_array('get_public_teacher_details', $toolsUsed, true)) {
+        $listType = 'teacher';
+    } elseif (
+        in_array('get_public_classes', $toolsUsed, true) ||
+        in_array('search_public_classes', $toolsUsed, true) ||
+        in_array('get_new_public_classes', $toolsUsed, true)
+    ) {
+        $listType = 'class';
+    } elseif (in_array('get_public_institute_details', $toolsUsed, true)) {
+        $listType = 'institute';
+    } elseif (
+        in_array('verify_student_for_attendance', $toolsUsed, true) ||
+        in_array('get_verified_student_attendance', $toolsUsed, true)
+    ) {
+        $listType = 'attendance';
+    }
 
     ai_json([
         'reply' => $reply,
+        'response_language' => $finalLanguage,
+        'preferred_language' => $preferredLanguage,
+        'list_type' => $listType,
     ]);
 } catch (Throwable $e) {
     error_log('AI Assistant API Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
