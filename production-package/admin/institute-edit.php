@@ -39,9 +39,7 @@ $created = isset($_GET['created']);
 $keyRegenerated = isset($_GET['key_regenerated']);
 $error = $_GET['error'] ?? null;
 
-$currentHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$widgetScriptUrl = $scheme . '://' . $currentHost . $base . '/widget.js';
+$widgetScriptUrl = ai_app_url('/widget.js');
 $widgetKey = (string) $institute['public_widget_key'];
 
 $embedCode = '<script' . "\n" .
