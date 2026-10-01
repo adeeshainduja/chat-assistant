@@ -11,6 +11,9 @@ try {
 
     $sqlAi2 = file_get_contents(__DIR__ . '/../database/add_institute_public_details_and_new_courses.sql');
     $aiPdo->exec($sqlAi2);
+
+    $sqlAi3 = file_get_contents(__DIR__ . '/../database/add_pre_chat_message.sql');
+    $aiPdo->exec($sqlAi3);
     echo "AI DB migrations completed successfully.\n";
 
     echo "--- Institutes Table Columns ---\n";

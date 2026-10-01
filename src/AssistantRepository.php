@@ -176,6 +176,8 @@ final class AssistantRepository
             $enabledPermissionKeys
         ));
 
+        $this->ensurePreChatColumns();
+
         $this->pdo->beginTransaction();
 
         try {
@@ -201,9 +203,18 @@ final class AssistantRepository
                      assistant_bubble_color = ?,
                      chat_background_color = ?,
                      starter_messages = ?,
-                     header_subtitle = ?
+                     header_subtitle = ?,
+                     pre_chat_enabled = ?,
+                     pre_chat_message = ?,
+                     pre_chat_delay = ?,
+                     pre_chat_display_mode = ?
                  WHERE id = ?'
             );
+
+            $preChatDisplayMode = (string) ($assistantSettings['pre_chat_display_mode'] ?? 'always');
+            if (!in_array($preChatDisplayMode, ['always', 'once_session', 'once_visitor'], true)) {
+                $preChatDisplayMode = 'always';
+            }
 
             $stmt->execute([
                 trim((string) ($assistantSettings['name'] ?? '')),
@@ -222,6 +233,12 @@ final class AssistantRepository
                     ? (string) $assistantSettings['starter_messages']
                     : null,
                 trim((string) ($assistantSettings['header_subtitle'] ?? 'AI Assistant')),
+                !empty($assistantSettings['pre_chat_enabled']) ? 1 : 0,
+                isset($assistantSettings['pre_chat_message']) && trim((string) $assistantSettings['pre_chat_message']) !== ''
+                    ? trim((string) $assistantSettings['pre_chat_message'])
+                    : null,
+                isset($assistantSettings['pre_chat_delay']) ? max(0, (int) $assistantSettings['pre_chat_delay']) : 3,
+                $preChatDisplayMode,
                 $assistantId,
             ]);
 
@@ -298,5 +315,20 @@ final class AssistantRepository
             $settings,
             $enabledPermissionKeys
         );
+    }
+
+    private function ensurePreChatColumns(): void
+    {
+        try {
+            $cols = $this->pdo->query("SHOW COLUMNS FROM ai_assistants LIKE 'pre_chat_enabled'")->fetchAll();
+            if (empty($cols)) {
+                $this->pdo->exec("ALTER TABLE ai_assistants ADD COLUMN pre_chat_enabled TINYINT(1) NOT NULL DEFAULT 0");
+                $this->pdo->exec("ALTER TABLE ai_assistants ADD COLUMN pre_chat_message TEXT NULL");
+                $this->pdo->exec("ALTER TABLE ai_assistants ADD COLUMN pre_chat_delay INT UNSIGNED NOT NULL DEFAULT 3");
+                $this->pdo->exec("ALTER TABLE ai_assistants ADD COLUMN pre_chat_display_mode VARCHAR(20) NOT NULL DEFAULT 'always'");
+            }
+        } catch (Throwable $e) {
+            // Ignore if columns already exist or restricted DB user
+        }
     }
 }
