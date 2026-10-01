@@ -77,6 +77,14 @@ $instituteData = [
     'public_notes' => mb_substr(trim((string) ($_POST['public_notes'] ?? '')), 0, 5000),
 ];
 
+$preChatEnabled = isset($_POST['pre_chat_enabled']) ? 1 : 0;
+$preChatMessage = mb_substr(trim((string) ($_POST['pre_chat_message'] ?? '')), 0, 2000);
+$preChatDelay = isset($_POST['pre_chat_delay']) ? max(0, min(300, (int) $_POST['pre_chat_delay'])) : 3;
+$preChatDisplayMode = (string) ($_POST['pre_chat_display_mode'] ?? 'always');
+if (!in_array($preChatDisplayMode, ['always', 'once_session', 'once_visitor'], true)) {
+    $preChatDisplayMode = 'always';
+}
+
 $assistantSettings = [
     'name' => mb_substr(trim((string) ($_POST['name'] ?? 'Achieve AI')), 0, 255),
     'welcome_message' => mb_substr(trim((string) ($_POST['welcome_message'] ?? '')), 0, 5000),
@@ -92,6 +100,10 @@ $assistantSettings = [
     'chat_background_color' => $chatBg,
     'starter_messages' => $starterMessagesJson,
     'header_subtitle' => $headerSubtitle,
+    'pre_chat_enabled' => $preChatEnabled,
+    'pre_chat_message' => $preChatMessage !== '' ? $preChatMessage : null,
+    'pre_chat_delay' => $preChatDelay,
+    'pre_chat_display_mode' => $preChatDisplayMode,
 ];
 
 $permissions = is_array($_POST['permissions'] ?? null)
