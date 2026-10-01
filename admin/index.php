@@ -352,7 +352,40 @@ $permissionHelp = [
             <small class="muted" style="display:block;margin-top:6px;">Enter one suggested question per line.</small>
         </div>
 
-        <button class="save" type="submit">Save Institute Settings</button>
+        <!-- Section 6: Pre-Chat Message -->
+        <div class="card">
+            <h2>Pre-Chat Message</h2>
+            <p class="muted" style="margin-top:-8px;margin-bottom:14px;">Configure a prompt message bubble to display near the floating AI button before opening the chat.</p>
+
+            <label class="toggle" style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:14px;">
+                <input type="checkbox" name="pre_chat_enabled" value="1" <?= !empty($assistant['pre_chat_enabled']) ? 'checked' : '' ?> style="width:18px;height:18px;cursor:pointer;">
+                Show pre-chat message
+            </label>
+
+            <label class="field">Message</label>
+            <textarea name="pre_chat_message" rows="3" placeholder="👋 Hi! Need help finding a class, course, or checking your attendance?&#10;I'm here to help."><?= htmlspecialchars((string) ($assistant['pre_chat_message'] ?? '')) ?></textarea>
+
+            <div class="row">
+                <div>
+                    <label class="field">Display Behavior</label>
+                    <select name="pre_chat_display_mode">
+                        <option value="always" <?= ($assistant['pre_chat_display_mode'] ?? 'always') === 'always' ? 'selected' : '' ?>>Always show</option>
+                        <option value="once_session" <?= ($assistant['pre_chat_display_mode'] ?? '') === 'once_session' ? 'selected' : '' ?>>Show once per session</option>
+                        <option value="once_visitor" <?= ($assistant['pre_chat_display_mode'] ?? '') === 'once_visitor' ? 'selected' : '' ?>>Show once per visitor</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field">Display Delay</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:14px;color:#64748b;">Show after</span>
+                        <input type="number" name="pre_chat_delay" min="0" max="60" value="<?= htmlspecialchars((string) ($assistant['pre_chat_delay'] ?? 3)) ?>" style="width:80px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit;font-size:14px;text-align:center;">
+                        <span style="font-size:14px;color:#64748b;">seconds</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="save" type="submit">Save Changes</button>
     </form>
 </div>
 
