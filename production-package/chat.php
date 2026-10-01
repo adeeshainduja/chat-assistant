@@ -89,6 +89,11 @@ $chatBgColor = (string) ($assistant['chat_background_color'] ?? '#FFFFFF');
 $headerSubtitle = (string) ($assistant['header_subtitle'] ?? 'AI Assistant');
 $instituteName = (string) ($assistant['institute_name'] ?? '');
 
+$preChatEnabled = !empty($assistant['pre_chat_enabled']);
+$preChatMessage = (string) ($assistant['pre_chat_message'] ?? '');
+$preChatDelay = isset($assistant['pre_chat_delay']) ? (int) $assistant['pre_chat_delay'] : 3;
+$preChatDisplayMode = (string) ($assistant['pre_chat_display_mode'] ?? 'always');
+
 $starterMessages = [];
 if (!empty($assistant['starter_messages'])) {
     $decoded = json_decode((string) $assistant['starter_messages'], true);
@@ -130,6 +135,10 @@ if (!empty($assistant['starter_messages'])) {
     data-admin-user-bubble="<?= htmlspecialchars($userBubbleColor) ?>"
     data-admin-assistant-bubble="<?= htmlspecialchars($assistantBubbleColor) ?>"
     data-admin-text="<?= htmlspecialchars($themeTextColor) ?>"
+    data-pre-chat-enabled="<?= $preChatEnabled ? '1' : '0' ?>"
+    data-pre-chat-message="<?= htmlspecialchars($preChatMessage) ?>"
+    data-pre-chat-delay="<?= $preChatDelay ?>"
+    data-pre-chat-display-mode="<?= htmlspecialchars($preChatDisplayMode) ?>"
 >
     <header class="chat-header">
         <button type="button" class="header-icon-btn" id="header-back-btn" aria-label="Back">

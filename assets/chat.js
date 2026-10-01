@@ -633,10 +633,21 @@
         }
     });
 
-    // Notify parent window that chat is ready with active primary color
+    // Notify parent window that chat is ready with active primary color and pre-chat settings
     try {
+        const preChatConfig = {
+            enabled: shell.dataset.preChatEnabled === '1',
+            message: shell.dataset.preChatMessage || '',
+            delay: parseInt(shell.dataset.preChatDelay || '3', 10),
+            displayMode: shell.dataset.preChatDisplayMode || 'always',
+        };
+
         window.parent.postMessage(
-            { type: 'GETMORE_AI_READY', primaryColor: currentTheme.primaryColor },
+            {
+                type: 'GETMORE_AI_READY',
+                primaryColor: currentTheme.primaryColor,
+                preChat: preChatConfig,
+            },
             '*'
         );
     } catch (e) {}
